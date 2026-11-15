@@ -53,7 +53,7 @@ NOTES = {
     "marathon_idle_anon_mib": "one agent; 300 x 16 KB tool outputs; the harness's own default compaction (count in compactions); read after 5 min idle",
     "fleet_max_agents_reached": "largest N where all agents finished their first turn and stayed alive through the hold",
 }
-REPRODUCE = {"command": "git clone https://github.com/agentrambench/bench && cd bench && ./setup.sh && python3 hb.py quick && python3 export.py", "minutes": 15, "repo": "https://github.com/agentrambench/bench"}
+REPRODUCE = {"command": "git clone https://github.com/agentrambench/bench && cd bench && ./setup.sh && python3 hb.py quick && python3 export.py", "minutes": 30, "repo": "https://github.com/agentrambench/bench"}
 EDITION = "2026-11"
 
 METRICS = {

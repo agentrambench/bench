@@ -6,12 +6,12 @@ No model is called. A local deterministic mock (`mock.mjs`) speaks the Anthropic
 
 ## Requirements
 
-Linux with cgroup v2 and a systemd user session (`systemd-run --user --scope` must work), Node.js 20+, Python 3.10+, tmux, curl. Fleets of 50 agents need up to 20 GiB free RAM. Runs wait until load5 <= 12 (`HB_MAX_LOAD`) so timings stay comparable.
+Linux with cgroup v2 and a systemd user session (`systemd-run --user --scope` must work; run as a normal user over SSH or a desktop login), Node.js 20+ (Ubuntu 22.04 ships 12: install from NodeSource), Python 3.10+, tmux, git, curl. Tested from a fresh clone on Ubuntu 22.04.5 (Vast VM, 19 vCPU, 49 GiB): setup 76 s, quick profile 29 min. Fleets of 50 agents need up to 20 GiB free RAM. Runs wait until load5 <= 12 (`HB_MAX_LOAD`) so timings stay comparable.
 
 ## Run
 
     ./setup.sh                                  # pinned harness versions into ./harnesses
-    python3 hb.py quick && python3 export.py    # every scenario, small, ~15 min
+    python3 hb.py quick && python3 export.py    # every scenario, small, ~30 min for the 7 harnesses
     python3 report.py                           # plain-text tables from results/raw
 
 Full protocol for one harness (~4.5 h): `./run-full.sh claude`. Single scenarios: `python3 hb.py {task,crash,fault,herd,idle,resume} --help`.
