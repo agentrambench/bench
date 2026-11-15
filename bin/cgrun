@@ -1,0 +1,15 @@
+#!/bin/sh
+# cgrun OUT CMD...: run CMD in the current (scope) cgroup, then dump its counters to OUT before the scope disappears.
+# leftover_procs = processes other than this shell still in the scope when CMD has exited.
+out=$1; shift
+cg=/sys/fs/cgroup$(sed -n 's/^0:://p' /proc/self/cgroup)
+"$@"
+rc=$?
+{
+  echo "rc $rc"
+  echo "leftover_procs $(grep -cv "^$$\$" "$cg/cgroup.procs")"
+  echo "memory_peak $(cat "$cg/memory.peak")"
+  echo "swap_peak $(cat "$cg/memory.swap.peak" 2>/dev/null || echo 0)"
+  cat "$cg/cpu.stat"
+} > "$out"
+exit $rc

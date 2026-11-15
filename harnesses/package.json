@@ -1,0 +1,13 @@
+{
+  "name": "agentrambench-harnesses",
+  "private": true,
+  "description": "pinned harness versions measured by AgentRAMBench",
+  "dependencies": {
+    "@anthropic-ai/claude-code": "2.1.318",
+    "@charmland/crush": "0.101.0",
+    "@earendil-works/pi-coding-agent": "1.4.0",
+    "@google/gemini-cli": "0.68.0",
+    "@openai/codex": "0.167.0",
+    "opencode-ai": "1.19.5"
+  }
+}

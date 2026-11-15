@@ -1,0 +1,5 @@
+harnesses/node_modules/
+harnesses/goose/
+__pycache__/
+results/raw/
+results/invalid/
