@@ -15,6 +15,10 @@ ROOT = Path(__file__).parent
 RAW = ROOT / "results/raw"
 OUT = ROOT / "results/public/agentrambench.json"
 NAMES = {"claude": "Claude Code", "codex": "Codex CLI", "opencode": "opencode", "pi": "Pi", "crush": "Crush", "goose": "Goose", "gemini": "Gemini CLI"}
+# harness -> one line, while its numbers are partial or about to be replaced; drop the entry once complete
+PROVISIONAL = {"pi": "measured on a system install missing two declared dependencies (pi-telemetry, AWS Bedrock SDK), about 16 MiB less private RAM per process than the npm package; full rerun with the pinned npm package pending",
+               "goose": "partial: crash, shared quota and fleets of 1 and 10 measured; task, faults, fleet of 50, marathon and resumed sessions pending"}
+RAW_ARCHIVE = "https://github.com/agentrambench/bench/releases/download/edition-2026-11/raw-2026-11.tar.zst"
 HNOTES = {"goose": "line-based interactive CLI, not full-screen; its developer tools run in-process (no separate MCP process observed in 1.59.1)",
           "gemini": "Gemini API format (streamGenerateContent); usage statistics left at default (on) and counted as non-model traffic; model router left at default",
           "crush": "measured as the Go binary (the npm package adds a Node wrapper process)"}
@@ -267,6 +271,7 @@ def main():
         "schema": "agentrambench/1",
         "status": "final" if args.final else "preliminary",
         "reproduce": REPRODUCE,
+        "raw_archive": RAW_ARCHIVE,
         "edition": EDITION,
         "frozen": time.strftime("%Y-%m-%d"),
         "generated": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
@@ -276,7 +281,7 @@ def main():
         "sources": sources,
         "sources_by_harness": by_h,
         "fleet_comparable": {"n_agents": comparable[0], "hold_s": comparable[1]} if comparable else None,
-        "harnesses": [{"id": h, "name": NAMES[h], "version": versions.get(h, CLI[h].version), "status": "measured", "non_default_flags": FLAGS[h], **({"note": HNOTES[h]} if h in HNOTES else {})} for h in CLI if any(r["harness"] == h for r in res)]
+        "harnesses": [{"id": h, "name": NAMES[h], "version": versions.get(h, CLI[h].version), "status": "measured", "non_default_flags": FLAGS[h], **({"note": HNOTES[h]} if h in HNOTES else {}), **({"provisional": PROVISIONAL[h]} if h in PROVISIONAL else {})} for h in CLI if any(r["harness"] == h for r in res)]
                      + [{"id": k, "name": k, "status": "not_measurable", "reason": v} for k, v in NOT_MEASURABLE.items()]
                      + [{"id": k, "name": v[0], "status": "not_runnable_offline", "reason": v[1]} for k, v in OFFLINE.items()],
         "metrics": [{"id": k, "axis": v[0], "label": v[1], "unit": v[2], "better": v[3], "headline": v[4], **({"note": NOTES[k]} if k in NOTES else {}), **({"in_totals": k != "fault_loop-3min_done_alone"} if k.startswith("fault_") else {})} for k, v in METRICS.items()],
