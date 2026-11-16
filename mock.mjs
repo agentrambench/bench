@@ -175,9 +175,10 @@ function fillSchema(sc) {
 	const t = String(Array.isArray(sc.type) ? sc.type.find((x) => x !== "null") : sc.type ?? (sc.properties ? "object" : "string")).toLowerCase();
 	if (t === "object") return Object.fromEntries(Object.entries(sc.properties ?? {}).map(([k, v]) => [k, fillSchema(v)]));
 	if (t === "array") return [];
-	if (t === "integer" || t === "number") return sc.minimum ?? 1;
+	if (t === "integer") return sc.minimum ?? 1;  // gemini router complexity_score (1-100): 1 = simple
+	if (t === "number") return sc.minimum ?? 0;  // gemini loop detector confidence (0.0-1.0): 0 = not looping
 	if (t === "boolean") return false;
-	return "user";
+	return "user";  // neutral: a judge (loop detector, next-speaker check) gets "no problem, user speaks next"
 }
 
 // Decide: {kind:"tool", name, args} or {kind:"text", text}
@@ -188,11 +189,13 @@ function plan(view) {
 	const head = (last.slice(0, 1500) + "\n" + last.slice(-1500)).toLowerCase();
 	const notice = /(was|has been|were) compacted|being continued from a previous conversation|another language model started|continue the conversation from where/.test(last.slice(0, 600).toLowerCase());
 	const asksSummary = /summar|checkpoint compaction|state_snapshot/.test(head) && !notice && !/^HB[A-Z]+[ :]/.test(last);
-	if (asksSummary && /HBMARATHON|HBGROW/.test(usersAll)) {
-		const everything = usersAll + "\n" + view.outputs.join("\n");
+	// some harnesses (goose) send the transcript to summarise inside the system prompt, with a bare "summarize" user turn
+	const ctx = usersAll + "\n" + (asksSummary ? view.system ?? "" : "");
+	if (asksSummary && /HBMARATHON|HBGROW/.test(ctx)) {
+		const everything = ctx + "\n" + view.outputs.join("\n");
 		const steps = Math.max(doneBefore, ...[...everything.matchAll(/(?:STEP|GROW)-(\d+)/g)].map((m) => Number(m[1]) + 1), doneBefore + view.outputs.length);
-		const which = usersAll.match(/HBGROW \d+/)?.[0] ?? "HBMARATHON";
-		const who = usersAll.match(/\[a\d{3}\]/)?.[0] ?? "";
+		const which = ctx.match(/HBGROW \d+/)?.[0] ?? "HBMARATHON";
+		const who = ctx.match(/\[a\d{3}\]/)?.[0] ?? "";
 		return { kind: "text", text: `Summary: the user asked ${which} (read files step by step). STEPS-DONE=${steps}. Continue with the next step. ${who}`, compaction: true };
 	}
 	if (!view.tools.length) return { kind: "text", text: "Benchmark task" };
@@ -454,6 +457,7 @@ const server = http.createServer(async (req, res) => {
 	}
 	const gc = b.generationConfig ?? b.generation_config;
 	const schema = api === "gemini" && gc?.responseMimeType === "application/json" ? (gc.responseJsonSchema ?? gc.responseSchema ?? {}) : null;
+	view.system = sys;
 	const p = schema ? { kind: "text", text: JSON.stringify(fillSchema(schema)), side: "json" } : plan(view);
 	const out = p.kind === "tool" ? JSON.stringify(p.args) : p.kind === "custom" ? p.input : p.text;
 	const cached = Math.floor(cachedPrefix(tag, raw) / 4);

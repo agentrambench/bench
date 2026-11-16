@@ -17,7 +17,8 @@ OUT = ROOT / "results/public/agentrambench.json"
 NAMES = {"claude": "Claude Code", "codex": "Codex CLI", "opencode": "opencode", "pi": "Pi", "crush": "Crush", "goose": "Goose", "gemini": "Gemini CLI"}
 # harness -> one line, while its numbers are partial or about to be replaced; drop the entry once complete
 PROVISIONAL = {"pi": "measured on a system install missing two declared dependencies (pi-telemetry, AWS Bedrock SDK), about 16 MiB less private RAM per process than the npm package; full rerun with the pinned npm package pending",
-               "goose": "partial: crash, shared quota and fleets of 1 and 10 measured; task, faults, fleet of 50, marathon and resumed sessions pending"}
+               "goose": "partial: marathon and resumed sessions pending (rerun after a mock fix)",
+               "gemini": "partial: marathon and resumed sessions of 60 and 300 steps pending (the mock answered Gemini's loop detector with 'looping', rerun after the fix)"}
 RAW_ARCHIVE = "https://github.com/agentrambench/bench/releases/download/edition-2026-11/raw-2026-11.tar.zst"
 HNOTES = {"goose": "line-based interactive CLI, not full-screen; its developer tools run in-process (no separate MCP process observed in 1.59.1)",
           "gemini": "Gemini API format (streamGenerateContent); usage statistics left at default (on) and counted as non-model traffic; model router left at default",
@@ -153,10 +154,13 @@ def main():
             src("fault", h, d)
             for prof in f["profiles"]:
                 if prof == "loop-3min":
-                    NOTES.setdefault(f"fault_{prof}_done_alone", "success = the harness ends the runaway turn by itself within 3 min (step/turn cap); none measured has such a default cap; in_totals=false")
+                    NOTES.setdefault(f"fault_{prof}_done_alone", "success = the harness ends the runaway turn by itself before the 3-min timeout (step cap or loop detection: Crush and Gemini CLI stop after a few identical tool calls); in_totals=false")
                 METRICS.setdefault(f"fault_{prof}_done_alone", ("reliability", f"Fault: {FAULT_LABELS.get(prof, prof)}: finished without user action", "rate", "higher", prof in ("429x3", "truncate")))
                 rs = [r for r in f["rows"] if r["harness"] == h and r["fault"] == prof]
-                ok = [1.0 if (r.get("success_without_user") if r.get("scenario", "HBTASK") == "HBTASK" else r.get("final_reached")) else 0.0 for r in rs]
+                if prof == "loop-3min":
+                    ok = [1.0 if r.get("rc") is not None and r.get("wall_s", 999) < f["profiles"][prof].get("timeout", 180) - 5 else 0.0 for r in rs]
+                else:
+                    ok = [1.0 if (r.get("success_without_user") if r.get("scenario", "HBTASK") == "HBTASK" else r.get("final_reached")) else 0.0 for r in rs]
                 res.append(entry(h, f"fault_{prof}_done_alone", ok, 1, d.name))
         d, hd = newest("herd-", "herd.json", h)
         if hd:
@@ -281,7 +285,7 @@ def main():
         "sources": sources,
         "sources_by_harness": by_h,
         "fleet_comparable": {"n_agents": comparable[0], "hold_s": comparable[1]} if comparable else None,
-        "harnesses": [{"id": h, "name": NAMES[h], "version": versions.get(h, CLI[h].version), "status": "measured", "non_default_flags": FLAGS[h], **({"note": HNOTES[h]} if h in HNOTES else {}), **({"provisional": PROVISIONAL[h]} if h in PROVISIONAL else {})} for h in CLI if any(r["harness"] == h for r in res)]
+        "harnesses": [{"id": h, "name": NAMES[h], "version": CLI[h].version, "status": "measured", "non_default_flags": FLAGS[h], **({"note": HNOTES[h]} if h in HNOTES else {}), **({"provisional": PROVISIONAL[h]} if h in PROVISIONAL else {})} for h in CLI if any(r["harness"] == h for r in res)]
                      + [{"id": k, "name": k, "status": "not_measurable", "reason": v} for k, v in NOT_MEASURABLE.items()]
                      + [{"id": k, "name": v[0], "status": "not_runnable_offline", "reason": v[1]} for k, v in OFFLINE.items()],
         "metrics": [{"id": k, "axis": v[0], "label": v[1], "unit": v[2], "better": v[3], "headline": v[4], **({"note": NOTES[k]} if k in NOTES else {}), **({"in_totals": k != "fault_loop-3min_done_alone"} if k.startswith("fault_") else {})} for k, v in METRICS.items()],

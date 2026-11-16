@@ -8,9 +8,9 @@
  },
  "raw_archive": "https://github.com/agentrambench/bench/releases/download/edition-2026-11/raw-2026-11.tar.zst",
  "edition": "2026-11",
- "frozen": "2026-11-15",
- "generated": "2026-11-15T15:05:31+0100",
- "bench_commit": "aeb3f6b",
+ "frozen": "2026-11-16",
+ "generated": "2026-11-16T05:20:49+0100",
+ "bench_commit": "01fbd7a",
  "llm": "local deterministic mock (Anthropic Messages / OpenAI Responses / Gemini generateContent); no real model",
  "machine": {
   "cpu": "Intel(R) Core(TM) i7-10700KF CPU @ 3.80GHz",
@@ -31,7 +31,9 @@
    "codex": "task-20261106-132208",
    "opencode": "task-20261106-132208",
    "pi": "task-20261106-132208",
-   "crush": "task-20261115-000143"
+   "crush": "task-20261115-000143",
+   "goose": "task-20261115-200228",
+   "gemini": "task-20261115-232549"
   },
   "crash": {
    "claude": "crash-20261106-141500",
@@ -39,14 +41,17 @@
    "opencode": "crash-20261106-141500",
    "pi": "crash-20261106-141500",
    "crush": "crash-20261115-000257",
-   "goose": "crash-20261115-120732"
+   "goose": "crash-20261115-120732",
+   "gemini": "crash-20261115-232724"
   },
   "fault": {
    "claude": "fault-20261106-141450",
    "codex": "fault-20261106-141450",
    "opencode": "fault-20261106-141450",
    "pi": "fault-20261106-141450",
-   "crush": "fault-20261115-002919"
+   "crush": "fault-20261115-002919",
+   "goose": "fault-20261115-200328",
+   "gemini": "fault-20261115-233702"
   },
   "herd": {
    "claude": "herd-20261106-162244",
@@ -54,7 +59,8 @@
    "opencode": "herd-20261106-162244",
    "pi": "herd-20261106-162244",
    "crush": "herd-20261115-005018",
-   "goose": "herd-20261115-124316"
+   "goose": "herd-20261115-124316",
+   "gemini": "herd-20261116-000436"
   }
  },
  "fleet_comparable": {
@@ -86,7 +92,7 @@
   {
    "id": "pi",
    "name": "Pi",
-   "version": "pi-coding-agent 1.4.0 (npm upstream)",
+   "version": "1.4.0 (npm @earendil-works/pi-coding-agent)",
    "status": "measured",
    "non_default_flags": "models.json anthropic baseUrl+key; settings defaultProvider/defaultModel",
    "provisional": "measured on a system install missing two declared dependencies (pi-telemetry, AWS Bedrock SDK), about 16 MiB less private RAM per process than the npm package; full rerun with the pinned npm package pending"
@@ -106,7 +112,16 @@
    "status": "measured",
    "non_default_flags": "GOOSE_PROVIDER=anthropic, GOOSE_MODEL, ANTHROPIC_HOST+ANTHROPIC_API_KEY, GOOSE_DISABLE_KEYRING=1, GOOSE_MODE=auto; telemetry consent pre-answered with its default (yes)",
    "note": "line-based interactive CLI, not full-screen; its developer tools run in-process (no separate MCP process observed in 1.59.1)",
-   "provisional": "partial: crash, shared quota and fleets of 1 and 10 measured; task, faults, fleet of 50, marathon and resumed sessions pending"
+   "provisional": "partial: marathon and resumed sessions pending (rerun after a mock fix)"
+  },
+  {
+   "id": "gemini",
+   "name": "Gemini CLI",
+   "version": "gemini-cli 0.68.0",
+   "status": "measured",
+   "non_default_flags": "settings security.auth.selectedType=gemini-api-key; GEMINI_API_KEY dummy + GOOGLE_GEMINI_BASE_URL; -y (yolo), --skip-trust; trustedFolders",
+   "note": "Gemini API format (streamGenerateContent); usage statistics left at default (on) and counted as non-model traffic; model router left at default",
+   "provisional": "partial: marathon and resumed sessions of 60 and 300 steps pending (the mock answered Gemini's loop detector with 'looping', rerun after the fix)"
   },
   {
    "id": "cursor-cli",
@@ -605,7 +620,7 @@
    "unit": "rate",
    "better": "higher",
    "headline": false,
-   "note": "success = the harness ends the runaway turn by itself within 3 min (step/turn cap); none measured has such a default cap; in_totals=false",
+   "note": "success = the harness ends the runaway turn by itself before the 3-min timeout (step cap or loop detection: Crush and Gemini CLI stop after a few identical tool calls); in_totals=false",
    "in_totals": false
   },
   {
@@ -3095,12 +3110,12 @@
    "metric": "fault_loop-3min_done_alone",
    "n_agents": 1,
    "runs": 2,
-   "median": 0.0,
-   "min": 0.0,
-   "max": 0.0,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
    "values": [
-    0.0,
-    0.0
+    1.0,
+    1.0
    ],
    "source": "fault-20261115-002919"
   },
@@ -3131,6 +3146,159 @@
     0.0
    ],
    "source": "herd-20261115-005018"
+  },
+  {
+   "harness": "goose",
+   "metric": "task_anon_mib",
+   "n_agents": 1,
+   "runs": 5,
+   "median": 93.3,
+   "min": 93.1,
+   "max": 93.6,
+   "values": [
+    93.6,
+    93.3,
+    93.3,
+    93.1,
+    93.1
+   ],
+   "source": "task-20261115-200228"
+  },
+  {
+   "harness": "goose",
+   "metric": "task_rss_mib",
+   "n_agents": 1,
+   "runs": 5,
+   "median": 128.0,
+   "min": 127.8,
+   "max": 128.2,
+   "values": [
+    128.2,
+    128.0,
+    128.2,
+    127.9,
+    127.8
+   ],
+   "source": "task-20261115-200228"
+  },
+  {
+   "harness": "goose",
+   "metric": "task_cpu_s",
+   "n_agents": 1,
+   "runs": 5,
+   "median": 0.45,
+   "min": 0.43,
+   "max": 0.47,
+   "values": [
+    0.45,
+    0.45,
+    0.47,
+    0.46,
+    0.43
+   ],
+   "source": "task-20261115-200228"
+  },
+  {
+   "harness": "goose",
+   "metric": "task_first_request_s",
+   "n_agents": 1,
+   "runs": 5,
+   "median": 0.262,
+   "min": 0.257,
+   "max": 0.285,
+   "values": [
+    0.259,
+    0.262,
+    0.285,
+    0.28,
+    0.257
+   ],
+   "source": "task-20261115-200228"
+  },
+  {
+   "harness": "goose",
+   "metric": "first_request_kib",
+   "n_agents": 1,
+   "runs": 5,
+   "median": 16.655,
+   "min": 16.655,
+   "max": 16.655,
+   "values": [
+    16.655,
+    16.655,
+    16.655,
+    16.655,
+    16.655
+   ],
+   "source": "task-20261115-200228"
+  },
+  {
+   "harness": "goose",
+   "metric": "task_uncached_ktok",
+   "n_agents": 1,
+   "runs": 5,
+   "median": 18.067,
+   "min": 18.067,
+   "max": 18.067,
+   "values": [
+    18.067,
+    18.067,
+    18.067,
+    18.067,
+    18.067
+   ],
+   "source": "task-20261115-200228"
+  },
+  {
+   "harness": "goose",
+   "metric": "task_requests",
+   "n_agents": 1,
+   "runs": 5,
+   "median": 5,
+   "min": 5,
+   "max": 5,
+   "values": [
+    5,
+    5,
+    5,
+    5,
+    5
+   ],
+   "source": "task-20261115-200228"
+  },
+  {
+   "harness": "goose",
+   "metric": "task_net_out_kib",
+   "n_agents": 1,
+   "runs": 5,
+   "median": 0.0,
+   "min": 0.0,
+   "max": 0.0,
+   "values": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "source": "task-20261115-200228"
+  },
+  {
+   "harness": "goose",
+   "metric": "task_canary_leaks",
+   "n_agents": 1,
+   "runs": 5,
+   "median": 0,
+   "min": 0,
+   "max": 0,
+   "values": [
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "source": "task-20261115-200228"
   },
   {
    "harness": "goose",
@@ -3254,6 +3422,216 @@
   },
   {
    "harness": "goose",
+   "metric": "fault_429x3_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "values": [
+    1.0,
+    1.0
+   ],
+   "source": "fault-20261115-200328"
+  },
+  {
+   "harness": "goose",
+   "metric": "fault_429-60s_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 0.0,
+   "min": 0.0,
+   "max": 0.0,
+   "values": [
+    0.0,
+    0.0
+   ],
+   "source": "fault-20261115-200328"
+  },
+  {
+   "harness": "goose",
+   "metric": "fault_529x3_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "values": [
+    1.0,
+    1.0
+   ],
+   "source": "fault-20261115-200328"
+  },
+  {
+   "harness": "goose",
+   "metric": "fault_500x3_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "values": [
+    1.0,
+    1.0
+   ],
+   "source": "fault-20261115-200328"
+  },
+  {
+   "harness": "goose",
+   "metric": "fault_401-60s_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 0.0,
+   "min": 0.0,
+   "max": 0.0,
+   "values": [
+    0.0,
+    0.0
+   ],
+   "source": "fault-20261115-200328"
+  },
+  {
+   "harness": "goose",
+   "metric": "fault_reset-30s_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 0.0,
+   "min": 0.0,
+   "max": 0.0,
+   "values": [
+    0.0,
+    0.0
+   ],
+   "source": "fault-20261115-200328"
+  },
+  {
+   "harness": "goose",
+   "metric": "fault_hang-30s_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "values": [
+    1.0,
+    1.0
+   ],
+   "source": "fault-20261115-200328"
+  },
+  {
+   "harness": "goose",
+   "metric": "fault_truncate_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "values": [
+    1.0,
+    1.0
+   ],
+   "source": "fault-20261115-200328"
+  },
+  {
+   "harness": "goose",
+   "metric": "fault_stall-60s_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "values": [
+    1.0,
+    1.0
+   ],
+   "source": "fault-20261115-200328"
+  },
+  {
+   "harness": "goose",
+   "metric": "fault_trickle_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "values": [
+    1.0,
+    1.0
+   ],
+   "source": "fault-20261115-200328"
+  },
+  {
+   "harness": "goose",
+   "metric": "fault_sse-error_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "values": [
+    1.0,
+    1.0
+   ],
+   "source": "fault-20261115-200328"
+  },
+  {
+   "harness": "goose",
+   "metric": "fault_malformed_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "values": [
+    1.0,
+    1.0
+   ],
+   "source": "fault-20261115-200328"
+  },
+  {
+   "harness": "goose",
+   "metric": "fault_tool-hang_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "values": [
+    1.0,
+    1.0
+   ],
+   "source": "fault-20261115-200328"
+  },
+  {
+   "harness": "goose",
+   "metric": "fault_tool-huge_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "values": [
+    1.0,
+    1.0
+   ],
+   "source": "fault-20261115-200328"
+  },
+  {
+   "harness": "goose",
+   "metric": "fault_loop-3min_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 0.0,
+   "min": 0.0,
+   "max": 0.0,
+   "values": [
+    0.0,
+    0.0
+   ],
+   "source": "fault-20261115-200328"
+  },
+  {
+   "harness": "goose",
    "metric": "herd_tasks_done_retry_after",
    "n_agents": 20,
    "runs": 2,
@@ -3279,6 +3657,517 @@
     0.0
    ],
    "source": "herd-20261115-124316"
+  },
+  {
+   "harness": "gemini",
+   "metric": "task_anon_mib",
+   "n_agents": 1,
+   "runs": 5,
+   "median": 363.8,
+   "min": 358.9,
+   "max": 364.3,
+   "values": [
+    364.3,
+    360.8,
+    364.0,
+    358.9,
+    363.8
+   ],
+   "source": "task-20261115-232549"
+  },
+  {
+   "harness": "gemini",
+   "metric": "task_rss_mib",
+   "n_agents": 1,
+   "runs": 5,
+   "median": 498.4,
+   "min": 443.1,
+   "max": 519.8,
+   "values": [
+    519.8,
+    443.1,
+    498.4,
+    447.3,
+    516.4
+   ],
+   "source": "task-20261115-232549"
+  },
+  {
+   "harness": "gemini",
+   "metric": "task_cpu_s",
+   "n_agents": 1,
+   "runs": 5,
+   "median": 3.02,
+   "min": 2.81,
+   "max": 3.08,
+   "values": [
+    2.81,
+    3.08,
+    3.05,
+    3.02,
+    2.99
+   ],
+   "source": "task-20261115-232549"
+  },
+  {
+   "harness": "gemini",
+   "metric": "task_first_request_s",
+   "n_agents": 1,
+   "runs": 5,
+   "median": 1.494,
+   "min": 1.431,
+   "max": 1.506,
+   "values": [
+    1.506,
+    1.431,
+    1.497,
+    1.449,
+    1.494
+   ],
+   "source": "task-20261115-232549"
+  },
+  {
+   "harness": "gemini",
+   "metric": "first_request_kib",
+   "n_agents": 1,
+   "runs": 5,
+   "median": 45.337,
+   "min": 45.337,
+   "max": 45.337,
+   "values": [
+    45.337,
+    45.337,
+    45.337,
+    45.337,
+    45.337
+   ],
+   "source": "task-20261115-232549"
+  },
+  {
+   "harness": "gemini",
+   "metric": "task_uncached_ktok",
+   "n_agents": 1,
+   "runs": 5,
+   "median": 47.568,
+   "min": 47.568,
+   "max": 47.568,
+   "values": [
+    47.568,
+    47.568,
+    47.568,
+    47.568,
+    47.568
+   ],
+   "source": "task-20261115-232549"
+  },
+  {
+   "harness": "gemini",
+   "metric": "task_requests",
+   "n_agents": 1,
+   "runs": 5,
+   "median": 5,
+   "min": 5,
+   "max": 5,
+   "values": [
+    5,
+    5,
+    5,
+    5,
+    5
+   ],
+   "source": "task-20261115-232549"
+  },
+  {
+   "harness": "gemini",
+   "metric": "task_net_out_kib",
+   "n_agents": 1,
+   "runs": 5,
+   "median": 19.199,
+   "min": 19.196,
+   "max": 19.203,
+   "values": [
+    19.199,
+    19.196,
+    19.203,
+    19.202,
+    19.199
+   ],
+   "source": "task-20261115-232549"
+  },
+  {
+   "harness": "gemini",
+   "metric": "task_canary_leaks",
+   "n_agents": 1,
+   "runs": 5,
+   "median": 0,
+   "min": 0,
+   "max": 0,
+   "values": [
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "source": "task-20261115-232549"
+  },
+  {
+   "harness": "gemini",
+   "metric": "crash_kill9_recovered_alone",
+   "n_agents": 1,
+   "runs": 3,
+   "median": 0.0,
+   "min": 0.0,
+   "max": 0.0,
+   "values": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "source": "crash-20261115-232724"
+  },
+  {
+   "harness": "gemini",
+   "metric": "crash_kill9_double_execution",
+   "n_agents": 1,
+   "runs": 3,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "values": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "source": "crash-20261115-232724"
+  },
+  {
+   "harness": "gemini",
+   "metric": "crash_scope_recovered_alone",
+   "n_agents": 1,
+   "runs": 3,
+   "median": 0.0,
+   "min": 0.0,
+   "max": 0.0,
+   "values": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "source": "crash-20261115-232724"
+  },
+  {
+   "harness": "gemini",
+   "metric": "crash_scope_double_execution",
+   "n_agents": 1,
+   "runs": 3,
+   "median": 0.0,
+   "min": 0.0,
+   "max": 0.0,
+   "values": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "source": "crash-20261115-232724"
+  },
+  {
+   "harness": "gemini",
+   "metric": "crash_term_recovered_alone",
+   "n_agents": 1,
+   "runs": 3,
+   "median": 0.0,
+   "min": 0.0,
+   "max": 0.0,
+   "values": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "source": "crash-20261115-232724"
+  },
+  {
+   "harness": "gemini",
+   "metric": "crash_term_double_execution",
+   "n_agents": 1,
+   "runs": 3,
+   "median": 0.0,
+   "min": 0.0,
+   "max": 0.0,
+   "values": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "source": "crash-20261115-232724"
+  },
+  {
+   "harness": "gemini",
+   "metric": "crash_stream_recovered_alone",
+   "n_agents": 1,
+   "runs": 3,
+   "median": 0.0,
+   "min": 0.0,
+   "max": 0.0,
+   "values": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "source": "crash-20261115-232724"
+  },
+  {
+   "harness": "gemini",
+   "metric": "crash_stream_double_execution",
+   "n_agents": 1,
+   "runs": 3,
+   "median": 0.0,
+   "min": 0.0,
+   "max": 0.0,
+   "values": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "source": "crash-20261115-232724"
+  },
+  {
+   "harness": "gemini",
+   "metric": "fault_429x3_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "values": [
+    1.0,
+    1.0
+   ],
+   "source": "fault-20261115-233702"
+  },
+  {
+   "harness": "gemini",
+   "metric": "fault_429-60s_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "values": [
+    1.0,
+    1.0
+   ],
+   "source": "fault-20261115-233702"
+  },
+  {
+   "harness": "gemini",
+   "metric": "fault_529x3_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "values": [
+    1.0,
+    1.0
+   ],
+   "source": "fault-20261115-233702"
+  },
+  {
+   "harness": "gemini",
+   "metric": "fault_500x3_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "values": [
+    1.0,
+    1.0
+   ],
+   "source": "fault-20261115-233702"
+  },
+  {
+   "harness": "gemini",
+   "metric": "fault_401-60s_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 0.0,
+   "min": 0.0,
+   "max": 0.0,
+   "values": [
+    0.0,
+    0.0
+   ],
+   "source": "fault-20261115-233702"
+  },
+  {
+   "harness": "gemini",
+   "metric": "fault_reset-30s_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "values": [
+    1.0,
+    1.0
+   ],
+   "source": "fault-20261115-233702"
+  },
+  {
+   "harness": "gemini",
+   "metric": "fault_hang-30s_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "values": [
+    1.0,
+    1.0
+   ],
+   "source": "fault-20261115-233702"
+  },
+  {
+   "harness": "gemini",
+   "metric": "fault_truncate_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "values": [
+    1.0,
+    1.0
+   ],
+   "source": "fault-20261115-233702"
+  },
+  {
+   "harness": "gemini",
+   "metric": "fault_stall-60s_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "values": [
+    1.0,
+    1.0
+   ],
+   "source": "fault-20261115-233702"
+  },
+  {
+   "harness": "gemini",
+   "metric": "fault_trickle_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "values": [
+    1.0,
+    1.0
+   ],
+   "source": "fault-20261115-233702"
+  },
+  {
+   "harness": "gemini",
+   "metric": "fault_sse-error_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "values": [
+    1.0,
+    1.0
+   ],
+   "source": "fault-20261115-233702"
+  },
+  {
+   "harness": "gemini",
+   "metric": "fault_malformed_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "values": [
+    1.0,
+    1.0
+   ],
+   "source": "fault-20261115-233702"
+  },
+  {
+   "harness": "gemini",
+   "metric": "fault_tool-hang_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "values": [
+    1.0,
+    1.0
+   ],
+   "source": "fault-20261115-233702"
+  },
+  {
+   "harness": "gemini",
+   "metric": "fault_tool-huge_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "values": [
+    1.0,
+    1.0
+   ],
+   "source": "fault-20261115-233702"
+  },
+  {
+   "harness": "gemini",
+   "metric": "fault_loop-3min_done_alone",
+   "n_agents": 1,
+   "runs": 2,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "values": [
+    1.0,
+    1.0
+   ],
+   "source": "fault-20261115-233702"
+  },
+  {
+   "harness": "gemini",
+   "metric": "herd_tasks_done_retry_after",
+   "n_agents": 20,
+   "runs": 2,
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "values": [
+    1.0,
+    1.0
+   ],
+   "source": "herd-20261116-000436"
+  },
+  {
+   "harness": "gemini",
+   "metric": "herd_tasks_done_no_retry_after",
+   "n_agents": 20,
+   "runs": 2,
+   "median": 0.975,
+   "min": 0.95,
+   "max": 1.0,
+   "values": [
+    1.0,
+    0.95
+   ],
+   "source": "herd-20261116-000436"
   },
   {
    "harness": "claude",
@@ -8343,6 +9232,223 @@
   },
   {
    "harness": "goose",
+   "metric": "idle_anon_mib_per_agent",
+   "n_agents": 50,
+   "runs": 1,
+   "median": 107.422,
+   "min": 107.422,
+   "max": 107.422,
+   "values": [
+    107.422
+   ],
+   "source": "idle-goose-50-hblong-tmux-20261115-203024",
+   "hold_s": 3600,
+   "comparable": false
+  },
+  {
+   "harness": "goose",
+   "metric": "idle_cpu_s_per_agent_hour",
+   "n_agents": 50,
+   "runs": 1,
+   "median": 0.014,
+   "min": 0.014,
+   "max": 0.014,
+   "values": [
+    0.014
+   ],
+   "source": "idle-goose-50-hblong-tmux-20261115-203024",
+   "hold_s": 3600,
+   "comparable": false
+  },
+  {
+   "harness": "goose",
+   "metric": "idle_net_out_kib_per_agent_hour",
+   "n_agents": 50,
+   "runs": 1,
+   "median": 0.0,
+   "min": 0.0,
+   "max": 0.0,
+   "values": [
+    0.0
+   ],
+   "source": "idle-goose-50-hblong-tmux-20261115-203024",
+   "hold_s": 3600,
+   "comparable": false
+  },
+  {
+   "harness": "goose",
+   "metric": "disk_state_mib",
+   "n_agents": 50,
+   "runs": 1,
+   "median": 74.1,
+   "min": 74.1,
+   "max": 74.1,
+   "values": [
+    74.1
+   ],
+   "source": "idle-goose-50-hblong-tmux-20261115-203024",
+   "hold_s": 3600,
+   "comparable": false
+  },
+  {
+   "harness": "goose",
+   "metric": "fleet_agents_per_gib",
+   "n_agents": 50,
+   "runs": 1,
+   "median": 9.532,
+   "min": 9.532,
+   "max": 9.532,
+   "values": [
+    9.532
+   ],
+   "source": "idle-goose-50-hblong-tmux-20261115-203024",
+   "hold_s": 3600,
+   "comparable": false
+  },
+  {
+   "harness": "goose",
+   "metric": "after_work_anon_mib_per_agent",
+   "n_agents": 50,
+   "runs": 1,
+   "median": 107.336,
+   "min": 107.336,
+   "max": 107.336,
+   "values": [
+    107.336
+   ],
+   "source": "idle-goose-50-hblong-tmux-20261115-203024",
+   "hold_s": 3600
+  },
+  {
+   "harness": "goose",
+   "metric": "harness_anon_mib_per_agent",
+   "n_agents": 50,
+   "runs": 1,
+   "median": 106.172,
+   "min": 106.172,
+   "max": 106.172,
+   "values": [
+    106.172
+   ],
+   "source": "idle-goose-50-hblong-tmux-20261115-203024",
+   "hold_s": 3600
+  },
+  {
+   "harness": "goose",
+   "metric": "terminal_anon_mib_per_agent",
+   "n_agents": 50,
+   "runs": 1,
+   "median": 1.25,
+   "min": 1.25,
+   "max": 1.25,
+   "values": [
+    1.25
+   ],
+   "source": "idle-goose-50-hblong-tmux-20261115-203024",
+   "hold_s": 3600
+  },
+  {
+   "harness": "goose",
+   "metric": "tool_children_anon_mib",
+   "n_agents": 50,
+   "runs": 1,
+   "median": 0.0,
+   "min": 0.0,
+   "max": 0.0,
+   "values": [
+    0.0
+   ],
+   "source": "idle-goose-50-hblong-tmux-20261115-203024",
+   "hold_s": 3600
+  },
+  {
+   "harness": "goose",
+   "metric": "work_peak_anon_mib_per_agent",
+   "n_agents": 50,
+   "runs": 1,
+   "median": 106.172,
+   "min": 106.172,
+   "max": 106.172,
+   "values": [
+    106.172
+   ],
+   "source": "idle-goose-50-hblong-tmux-20261115-203024",
+   "hold_s": 3600
+  },
+  {
+   "harness": "goose",
+   "metric": "idle_300s_anon_mib_per_agent",
+   "n_agents": 50,
+   "runs": 1,
+   "median": 107.422,
+   "min": 107.422,
+   "max": 107.422,
+   "values": [
+    107.422
+   ],
+   "source": "idle-goose-50-hblong-tmux-20261115-203024",
+   "hold_s": 3600,
+   "comparable": false
+  },
+  {
+   "harness": "goose",
+   "metric": "idle_3600s_anon_mib_per_agent",
+   "n_agents": 50,
+   "runs": 1,
+   "median": 107.422,
+   "min": 107.422,
+   "max": 107.422,
+   "values": [
+    107.422
+   ],
+   "source": "idle-goose-50-hblong-tmux-20261115-203024",
+   "hold_s": 3600,
+   "comparable": false
+  },
+  {
+   "harness": "goose",
+   "metric": "burst_cpu_s_per_agent",
+   "n_agents": 50,
+   "runs": 1,
+   "median": 0.227,
+   "min": 0.227,
+   "max": 0.227,
+   "values": [
+    0.227
+   ],
+   "source": "idle-goose-50-hblong-tmux-20261115-203024",
+   "hold_s": 3600
+  },
+  {
+   "harness": "goose",
+   "metric": "burst_turn_s_p50",
+   "n_agents": 50,
+   "runs": 1,
+   "median": 6.62,
+   "min": 6.62,
+   "max": 6.62,
+   "values": [
+    6.62
+   ],
+   "source": "idle-goose-50-hblong-tmux-20261115-203024",
+   "hold_s": 3600
+  },
+  {
+   "harness": "goose",
+   "metric": "burst_turn_s_p90",
+   "n_agents": 50,
+   "runs": 1,
+   "median": 6.92,
+   "min": 6.92,
+   "max": 6.92,
+   "values": [
+    6.92
+   ],
+   "source": "idle-goose-50-hblong-tmux-20261115-203024",
+   "hold_s": 3600
+  },
+  {
+   "harness": "goose",
    "metric": "burst_turn_inflation",
    "n_agents": 10,
    "runs": 1,
@@ -8357,16 +9463,757 @@
   },
   {
    "harness": "goose",
+   "metric": "burst_turn_inflation",
+   "n_agents": 50,
+   "runs": 1,
+   "median": 1.094,
+   "min": 1.094,
+   "max": 1.094,
+   "values": [
+    1.094
+   ],
+   "source": "idle-goose-50-hblong-tmux-20261115-203024",
+   "hold_s": 3600
+  },
+  {
+   "harness": "goose",
    "metric": "fleet_max_agents_reached",
    "n_agents": 200,
    "runs": 1,
-   "median": 10,
-   "min": 10,
-   "max": 10,
+   "median": 50,
+   "min": 50,
+   "max": 50,
    "values": [
-    10
+    50
    ],
-   "source": "idle-goose-10-hblong-tmux-20261115-125652"
+   "source": "idle-goose-10-hblong-tmux-20261115-125652,idle-goose-50-hblong-tmux-20261115-203024"
+  },
+  {
+   "harness": "gemini",
+   "metric": "idle_anon_mib_per_agent",
+   "n_agents": 1,
+   "runs": 1,
+   "median": 309.9,
+   "min": 309.9,
+   "max": 309.9,
+   "values": [
+    309.9
+   ],
+   "source": "idle-gemini-1-hblong-tmux-20261116-001938",
+   "hold_s": 300,
+   "comparable": false
+  },
+  {
+   "harness": "gemini",
+   "metric": "idle_cpu_s_per_agent_hour",
+   "n_agents": 1,
+   "runs": 1,
+   "median": 0.24,
+   "min": 0.24,
+   "max": 0.24,
+   "values": [
+    0.24
+   ],
+   "source": "idle-gemini-1-hblong-tmux-20261116-001938",
+   "hold_s": 300,
+   "comparable": false
+  },
+  {
+   "harness": "gemini",
+   "metric": "idle_net_out_kib_per_agent_hour",
+   "n_agents": 1,
+   "runs": 1,
+   "median": 0.0,
+   "min": 0.0,
+   "max": 0.0,
+   "values": [
+    0.0
+   ],
+   "source": "idle-gemini-1-hblong-tmux-20261116-001938",
+   "hold_s": 300,
+   "comparable": false
+  },
+  {
+   "harness": "gemini",
+   "metric": "disk_state_mib",
+   "n_agents": 1,
+   "runs": 1,
+   "median": 0.2,
+   "min": 0.2,
+   "max": 0.2,
+   "values": [
+    0.2
+   ],
+   "source": "idle-gemini-1-hblong-tmux-20261116-001938",
+   "hold_s": 300,
+   "comparable": false
+  },
+  {
+   "harness": "gemini",
+   "metric": "fleet_agents_per_gib",
+   "n_agents": 1,
+   "runs": 1,
+   "median": 3.304,
+   "min": 3.304,
+   "max": 3.304,
+   "values": [
+    3.304
+   ],
+   "source": "idle-gemini-1-hblong-tmux-20261116-001938",
+   "hold_s": 300,
+   "comparable": false
+  },
+  {
+   "harness": "gemini",
+   "metric": "after_work_anon_mib_per_agent",
+   "n_agents": 1,
+   "runs": 1,
+   "median": 394.6,
+   "min": 394.6,
+   "max": 394.6,
+   "values": [
+    394.6
+   ],
+   "source": "idle-gemini-1-hblong-tmux-20261116-001938",
+   "hold_s": 300
+  },
+  {
+   "harness": "gemini",
+   "metric": "harness_anon_mib_per_agent",
+   "n_agents": 1,
+   "runs": 1,
+   "median": 307.6,
+   "min": 307.6,
+   "max": 307.6,
+   "values": [
+    307.6
+   ],
+   "source": "idle-gemini-1-hblong-tmux-20261116-001938",
+   "hold_s": 300
+  },
+  {
+   "harness": "gemini",
+   "metric": "terminal_anon_mib_per_agent",
+   "n_agents": 1,
+   "runs": 1,
+   "median": 2.3,
+   "min": 2.3,
+   "max": 2.3,
+   "values": [
+    2.3
+   ],
+   "source": "idle-gemini-1-hblong-tmux-20261116-001938",
+   "hold_s": 300
+  },
+  {
+   "harness": "gemini",
+   "metric": "tool_children_anon_mib",
+   "n_agents": 1,
+   "runs": 1,
+   "median": 0.1,
+   "min": 0.1,
+   "max": 0.1,
+   "values": [
+    0.1
+   ],
+   "source": "idle-gemini-1-hblong-tmux-20261116-001938",
+   "hold_s": 300
+  },
+  {
+   "harness": "gemini",
+   "metric": "work_peak_anon_mib_per_agent",
+   "n_agents": 1,
+   "runs": 1,
+   "median": 403.8,
+   "min": 403.8,
+   "max": 403.8,
+   "values": [
+    403.8
+   ],
+   "source": "idle-gemini-1-hblong-tmux-20261116-001938",
+   "hold_s": 300
+  },
+  {
+   "harness": "gemini",
+   "metric": "idle_300s_anon_mib_per_agent",
+   "n_agents": 1,
+   "runs": 1,
+   "median": 309.9,
+   "min": 309.9,
+   "max": 309.9,
+   "values": [
+    309.9
+   ],
+   "source": "idle-gemini-1-hblong-tmux-20261116-001938",
+   "hold_s": 300,
+   "comparable": false
+  },
+  {
+   "harness": "gemini",
+   "metric": "burst_cpu_s_per_agent",
+   "n_agents": 1,
+   "runs": 1,
+   "median": 1.019,
+   "min": 1.019,
+   "max": 1.019,
+   "values": [
+    1.019
+   ],
+   "source": "idle-gemini-1-hblong-tmux-20261116-001938",
+   "hold_s": 300
+  },
+  {
+   "harness": "gemini",
+   "metric": "burst_turn_s_p50",
+   "n_agents": 1,
+   "runs": 1,
+   "median": 8.2,
+   "min": 8.2,
+   "max": 8.2,
+   "values": [
+    8.2
+   ],
+   "source": "idle-gemini-1-hblong-tmux-20261116-001938",
+   "hold_s": 300
+  },
+  {
+   "harness": "gemini",
+   "metric": "burst_turn_s_p90",
+   "n_agents": 1,
+   "runs": 1,
+   "median": 8.2,
+   "min": 8.2,
+   "max": 8.2,
+   "values": [
+    8.2
+   ],
+   "source": "idle-gemini-1-hblong-tmux-20261116-001938",
+   "hold_s": 300
+  },
+  {
+   "harness": "gemini",
+   "metric": "idle_anon_mib_per_agent",
+   "n_agents": 10,
+   "runs": 1,
+   "median": 312.66,
+   "min": 312.66,
+   "max": 312.66,
+   "values": [
+    312.66
+   ],
+   "source": "idle-gemini-10-hblong-tmux-20261116-002641",
+   "hold_s": 900,
+   "comparable": true
+  },
+  {
+   "harness": "gemini",
+   "metric": "idle_cpu_s_per_agent_hour",
+   "n_agents": 10,
+   "runs": 1,
+   "median": 0.296,
+   "min": 0.296,
+   "max": 0.296,
+   "values": [
+    0.296
+   ],
+   "source": "idle-gemini-10-hblong-tmux-20261116-002641",
+   "hold_s": 900,
+   "comparable": true
+  },
+  {
+   "harness": "gemini",
+   "metric": "idle_net_out_kib_per_agent_hour",
+   "n_agents": 10,
+   "runs": 1,
+   "median": 0.0,
+   "min": 0.0,
+   "max": 0.0,
+   "values": [
+    0.0
+   ],
+   "source": "idle-gemini-10-hblong-tmux-20261116-002641",
+   "hold_s": 900,
+   "comparable": true
+  },
+  {
+   "harness": "gemini",
+   "metric": "disk_state_mib",
+   "n_agents": 10,
+   "runs": 1,
+   "median": 0.2,
+   "min": 0.2,
+   "max": 0.2,
+   "values": [
+    0.2
+   ],
+   "source": "idle-gemini-10-hblong-tmux-20261116-002641",
+   "hold_s": 900,
+   "comparable": true
+  },
+  {
+   "harness": "gemini",
+   "metric": "fleet_agents_per_gib",
+   "n_agents": 10,
+   "runs": 1,
+   "median": 3.275,
+   "min": 3.275,
+   "max": 3.275,
+   "values": [
+    3.275
+   ],
+   "source": "idle-gemini-10-hblong-tmux-20261116-002641",
+   "hold_s": 900,
+   "comparable": true
+  },
+  {
+   "harness": "gemini",
+   "metric": "after_work_anon_mib_per_agent",
+   "n_agents": 10,
+   "runs": 1,
+   "median": 411.15,
+   "min": 411.15,
+   "max": 411.15,
+   "values": [
+    411.15
+   ],
+   "source": "idle-gemini-10-hblong-tmux-20261116-002641",
+   "hold_s": 900
+  },
+  {
+   "harness": "gemini",
+   "metric": "harness_anon_mib_per_agent",
+   "n_agents": 10,
+   "runs": 1,
+   "median": 311.49,
+   "min": 311.49,
+   "max": 311.49,
+   "values": [
+    311.49
+   ],
+   "source": "idle-gemini-10-hblong-tmux-20261116-002641",
+   "hold_s": 900
+  },
+  {
+   "harness": "gemini",
+   "metric": "terminal_anon_mib_per_agent",
+   "n_agents": 10,
+   "runs": 1,
+   "median": 1.17,
+   "min": 1.17,
+   "max": 1.17,
+   "values": [
+    1.17
+   ],
+   "source": "idle-gemini-10-hblong-tmux-20261116-002641",
+   "hold_s": 900
+  },
+  {
+   "harness": "gemini",
+   "metric": "tool_children_anon_mib",
+   "n_agents": 10,
+   "runs": 1,
+   "median": 0.1,
+   "min": 0.1,
+   "max": 0.1,
+   "values": [
+    0.1
+   ],
+   "source": "idle-gemini-10-hblong-tmux-20261116-002641",
+   "hold_s": 900
+  },
+  {
+   "harness": "gemini",
+   "metric": "work_peak_anon_mib_per_agent",
+   "n_agents": 10,
+   "runs": 1,
+   "median": 416.95,
+   "min": 416.95,
+   "max": 416.95,
+   "values": [
+    416.95
+   ],
+   "source": "idle-gemini-10-hblong-tmux-20261116-002641",
+   "hold_s": 900
+  },
+  {
+   "harness": "gemini",
+   "metric": "idle_300s_anon_mib_per_agent",
+   "n_agents": 10,
+   "runs": 1,
+   "median": 312.57,
+   "min": 312.57,
+   "max": 312.57,
+   "values": [
+    312.57
+   ],
+   "source": "idle-gemini-10-hblong-tmux-20261116-002641",
+   "hold_s": 900,
+   "comparable": true
+  },
+  {
+   "harness": "gemini",
+   "metric": "burst_cpu_s_per_agent",
+   "n_agents": 10,
+   "runs": 1,
+   "median": 1.32,
+   "min": 1.32,
+   "max": 1.32,
+   "values": [
+    1.32
+   ],
+   "source": "idle-gemini-10-hblong-tmux-20261116-002641",
+   "hold_s": 900
+  },
+  {
+   "harness": "gemini",
+   "metric": "burst_turn_s_p50",
+   "n_agents": 10,
+   "runs": 1,
+   "median": 8.43,
+   "min": 8.43,
+   "max": 8.43,
+   "values": [
+    8.43
+   ],
+   "source": "idle-gemini-10-hblong-tmux-20261116-002641",
+   "hold_s": 900
+  },
+  {
+   "harness": "gemini",
+   "metric": "burst_turn_s_p90",
+   "n_agents": 10,
+   "runs": 1,
+   "median": 8.52,
+   "min": 8.52,
+   "max": 8.52,
+   "values": [
+    8.52
+   ],
+   "source": "idle-gemini-10-hblong-tmux-20261116-002641",
+   "hold_s": 900
+  },
+  {
+   "harness": "gemini",
+   "metric": "idle_anon_mib_per_agent",
+   "n_agents": 25,
+   "runs": 1,
+   "median": 314.948,
+   "min": 314.948,
+   "max": 314.948,
+   "values": [
+    314.948
+   ],
+   "source": "idle-gemini-25-hblong-tmux-20261116-021043",
+   "hold_s": 3600,
+   "comparable": false
+  },
+  {
+   "harness": "gemini",
+   "metric": "idle_cpu_s_per_agent_hour",
+   "n_agents": 25,
+   "runs": 1,
+   "median": 0.091,
+   "min": 0.091,
+   "max": 0.091,
+   "values": [
+    0.091
+   ],
+   "source": "idle-gemini-25-hblong-tmux-20261116-021043",
+   "hold_s": 3600,
+   "comparable": false
+  },
+  {
+   "harness": "gemini",
+   "metric": "idle_net_out_kib_per_agent_hour",
+   "n_agents": 25,
+   "runs": 1,
+   "median": 0.0,
+   "min": 0.0,
+   "max": 0.0,
+   "values": [
+    0.0
+   ],
+   "source": "idle-gemini-25-hblong-tmux-20261116-021043",
+   "hold_s": 3600,
+   "comparable": false
+  },
+  {
+   "harness": "gemini",
+   "metric": "disk_state_mib",
+   "n_agents": 25,
+   "runs": 1,
+   "median": 0.2,
+   "min": 0.2,
+   "max": 0.2,
+   "values": [
+    0.2
+   ],
+   "source": "idle-gemini-25-hblong-tmux-20261116-021043",
+   "hold_s": 3600,
+   "comparable": false
+  },
+  {
+   "harness": "gemini",
+   "metric": "fleet_agents_per_gib",
+   "n_agents": 25,
+   "runs": 1,
+   "median": 3.251,
+   "min": 3.251,
+   "max": 3.251,
+   "values": [
+    3.251
+   ],
+   "source": "idle-gemini-25-hblong-tmux-20261116-021043",
+   "hold_s": 3600,
+   "comparable": false
+  },
+  {
+   "harness": "gemini",
+   "metric": "after_work_anon_mib_per_agent",
+   "n_agents": 25,
+   "runs": 1,
+   "median": 420.932,
+   "min": 420.932,
+   "max": 420.932,
+   "values": [
+    420.932
+   ],
+   "source": "idle-gemini-25-hblong-tmux-20261116-021043",
+   "hold_s": 3600
+  },
+  {
+   "harness": "gemini",
+   "metric": "harness_anon_mib_per_agent",
+   "n_agents": 25,
+   "runs": 1,
+   "median": 313.856,
+   "min": 313.856,
+   "max": 313.856,
+   "values": [
+    313.856
+   ],
+   "source": "idle-gemini-25-hblong-tmux-20261116-021043",
+   "hold_s": 3600
+  },
+  {
+   "harness": "gemini",
+   "metric": "terminal_anon_mib_per_agent",
+   "n_agents": 25,
+   "runs": 1,
+   "median": 1.092,
+   "min": 1.092,
+   "max": 1.092,
+   "values": [
+    1.092
+   ],
+   "source": "idle-gemini-25-hblong-tmux-20261116-021043",
+   "hold_s": 3600
+  },
+  {
+   "harness": "gemini",
+   "metric": "tool_children_anon_mib",
+   "n_agents": 25,
+   "runs": 1,
+   "median": 15.1,
+   "min": 15.1,
+   "max": 15.1,
+   "values": [
+    15.1
+   ],
+   "source": "idle-gemini-25-hblong-tmux-20261116-021043",
+   "hold_s": 3600
+  },
+  {
+   "harness": "gemini",
+   "metric": "work_peak_anon_mib_per_agent",
+   "n_agents": 25,
+   "runs": 1,
+   "median": 422.748,
+   "min": 422.748,
+   "max": 422.748,
+   "values": [
+    422.748
+   ],
+   "source": "idle-gemini-25-hblong-tmux-20261116-021043",
+   "hold_s": 3600
+  },
+  {
+   "harness": "gemini",
+   "metric": "idle_300s_anon_mib_per_agent",
+   "n_agents": 25,
+   "runs": 1,
+   "median": 314.48,
+   "min": 314.48,
+   "max": 314.48,
+   "values": [
+    314.48
+   ],
+   "source": "idle-gemini-25-hblong-tmux-20261116-021043",
+   "hold_s": 3600,
+   "comparable": false
+  },
+  {
+   "harness": "gemini",
+   "metric": "idle_3600s_anon_mib_per_agent",
+   "n_agents": 25,
+   "runs": 1,
+   "median": 314.948,
+   "min": 314.948,
+   "max": 314.948,
+   "values": [
+    314.948
+   ],
+   "source": "idle-gemini-25-hblong-tmux-20261116-021043",
+   "hold_s": 3600,
+   "comparable": false
+  },
+  {
+   "harness": "gemini",
+   "metric": "burst_cpu_s_per_agent",
+   "n_agents": 25,
+   "runs": 1,
+   "median": 1.494,
+   "min": 1.494,
+   "max": 1.494,
+   "values": [
+    1.494
+   ],
+   "source": "idle-gemini-25-hblong-tmux-20261116-021043",
+   "hold_s": 3600
+  },
+  {
+   "harness": "gemini",
+   "metric": "burst_turn_s_p50",
+   "n_agents": 25,
+   "runs": 1,
+   "median": 8.99,
+   "min": 8.99,
+   "max": 8.99,
+   "values": [
+    8.99
+   ],
+   "source": "idle-gemini-25-hblong-tmux-20261116-021043",
+   "hold_s": 3600
+  },
+  {
+   "harness": "gemini",
+   "metric": "burst_turn_s_p90",
+   "n_agents": 25,
+   "runs": 1,
+   "median": 9.16,
+   "min": 9.16,
+   "max": 9.16,
+   "values": [
+    9.16
+   ],
+   "source": "idle-gemini-25-hblong-tmux-20261116-021043",
+   "hold_s": 3600
+  },
+  {
+   "harness": "gemini",
+   "metric": "burst_turn_inflation",
+   "n_agents": 10,
+   "runs": 1,
+   "median": 1.028,
+   "min": 1.028,
+   "max": 1.028,
+   "values": [
+    1.028
+   ],
+   "source": "idle-gemini-10-hblong-tmux-20261116-002641",
+   "hold_s": 900
+  },
+  {
+   "harness": "gemini",
+   "metric": "burst_turn_inflation",
+   "n_agents": 25,
+   "runs": 1,
+   "median": 1.096,
+   "min": 1.096,
+   "max": 1.096,
+   "values": [
+    1.096
+   ],
+   "source": "idle-gemini-25-hblong-tmux-20261116-021043",
+   "hold_s": 3600
+  },
+  {
+   "harness": "gemini",
+   "metric": "resumed_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
+   "median": 276.2,
+   "min": 276.2,
+   "max": 276.2,
+   "values": [
+    276.2
+   ],
+   "source": "resume-gemini-5-20261116-045935",
+   "session_mb": 0.26,
+   "steps": 5,
+   "compactions": 0
+  },
+  {
+   "harness": "gemini",
+   "metric": "resumed_after_turn_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
+   "median": 361.933,
+   "min": 361.933,
+   "max": 361.933,
+   "values": [
+    361.933
+   ],
+   "source": "resume-gemini-5-20261116-045935",
+   "session_mb": 0.26,
+   "steps": 5,
+   "compactions": 0
+  },
+  {
+   "harness": "gemini",
+   "metric": "resumed_idle_300s_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
+   "median": 344.8,
+   "min": 344.8,
+   "max": 344.8,
+   "values": [
+    344.8
+   ],
+   "source": "resume-gemini-5-20261116-045935",
+   "session_mb": 0.26,
+   "steps": 5,
+   "compactions": 0
+  },
+  {
+   "harness": "gemini",
+   "metric": "resumed_peak_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
+   "median": 365.109,
+   "min": 365.109,
+   "max": 365.109,
+   "values": [
+    365.109
+   ],
+   "source": "resume-gemini-5-20261116-045935",
+   "session_mb": 0.26,
+   "steps": 5,
+   "compactions": 0
+  },
+  {
+   "harness": "gemini",
+   "metric": "fleet_max_agents_reached",
+   "n_agents": 200,
+   "runs": 1,
+   "median": 25,
+   "min": 25,
+   "max": 25,
+   "values": [
+    25
+   ],
+   "source": "idle-gemini-10-hblong-tmux-20261116-002641,idle-gemini-25-hblong-tmux-20261116-021043,idle-gemini-50-hblong-tmux-20261116-004356",
+   "stop_reason": "N=50: OOM-killed at the 20G cap"
   }
  ]
 }

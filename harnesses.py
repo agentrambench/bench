@@ -130,7 +130,7 @@ class OpenCode(Harness):
 
 class Pi(Harness):
     name = "pi"
-    version = "pi-coding-agent 1.4.0 (npm upstream)"
+    version = "1.4.0 (npm @earendil-works/pi-coding-agent)"
 
     def prepare(self, home, url, workspaces):
         super().prepare(home, url, workspaces)
@@ -221,7 +221,11 @@ class Goose(Harness):
         return [GOOSE, "run", "-s", "-t", prompt]
 
     def tui_resume(self, home, ws):
-        return [GOOSE, "session", "-r"]
+        # "session -r" alone resumes the most recent session of the whole HOME; pick this workspace's own
+        import sqlite3
+        db = sqlite3.connect(home / ".local/share/goose/sessions/sessions.db")
+        sid = db.execute("select id from sessions where working_dir = ? order by created_at desc, id desc limit 1", (str(ws),)).fetchone()[0]
+        return [GOOSE, "session", "-r", "--session-id", sid]
 
     session_dirs = (".local/share/goose/sessions",)
 

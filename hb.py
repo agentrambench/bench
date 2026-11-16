@@ -981,9 +981,12 @@ class Tmux:
         threading.Thread(target=typer, daemon=True).start()
 
     def type(self, name, text):
-        self.tm("send-keys", "-t", f"hb:{name}", "-l", text)
+        """False when the window is gone (its harness died, e.g. OOM-killed)."""
+        if self.tm("send-keys", "-t", f"hb:{name}", "-l", text, check=False).returncode:
+            return False
         time.sleep(0.3)
-        self.tm("send-keys", "-t", f"hb:{name}", "Enter")
+        self.tm("send-keys", "-t", f"hb:{name}", "Enter", check=False)
+        return True
 
     def screen(self, name):
         return self.tm("capture-pane", "-p", "-t", f"hb:{name}", check=False).stdout[-2500:]
@@ -1023,11 +1026,11 @@ def burst_phase(a, name, tmux, masters, drv, mock, tag, sampler, t0):
             drv.prompt(i, text(i))
     elif tmux:
         for i in range(a.n):
-            tmux.tm("send-keys", "-t", f"hb:a{i:03d}", "-l", text(i))
+            tmux.tm("send-keys", "-t", f"hb:a{i:03d}", "-l", text(i), check=False)
         time.sleep(0.3)
         t_b = time.time()
         for i in range(a.n):
-            tmux.tm("send-keys", "-t", f"hb:a{i:03d}", "Enter")
+            tmux.tm("send-keys", "-t", f"hb:a{i:03d}", "Enter", check=False)
     else:
         for i, m in masters.items():
             type_text(m, text(int(i[1:]) if isinstance(i, str) else i))
