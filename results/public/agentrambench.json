@@ -1,6 +1,6 @@
 {
  "schema": "agentrambench/1",
- "status": "preliminary",
+ "status": "final",
  "reproduce": {
   "command": "git clone https://github.com/agentrambench/bench && cd bench && ./setup.sh && python3 hb.py quick && python3 export.py",
   "minutes": 30,
@@ -9,8 +9,8 @@
  "raw_archive": "https://github.com/agentrambench/bench/releases/download/edition-2026-11/raw-2026-11.tar.zst",
  "edition": "2026-11",
  "frozen": "2026-11-17",
- "generated": "2026-11-17T00:18:45+0100",
- "bench_commit": "f46b68e",
+ "generated": "2026-11-17T00:20:52+0100",
+ "bench_commit": "a294222",
  "llm": "local deterministic mock (Anthropic Messages / OpenAI Responses / Gemini generateContent); no real model",
  "machine": {
   "cpu": "Intel(R) Core(TM) i7-10700KF CPU @ 3.80GHz",
