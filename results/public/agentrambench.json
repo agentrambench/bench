@@ -8,15 +8,15 @@
  },
  "raw_archive": "https://github.com/agentrambench/bench/releases/download/edition-2026-11/raw-2026-11.tar.zst",
  "edition": "2026-11",
- "frozen": "2026-11-16",
- "generated": "2026-11-16T05:20:49+0100",
- "bench_commit": "01fbd7a",
+ "frozen": "2026-11-17",
+ "generated": "2026-11-17T00:18:45+0100",
+ "bench_commit": "f46b68e",
  "llm": "local deterministic mock (Anthropic Messages / OpenAI Responses / Gemini generateContent); no real model",
  "machine": {
   "cpu": "Intel(R) Core(TM) i7-10700KF CPU @ 3.80GHz",
   "cores": 16,
   "ram_gib": 62.7,
-  "kernel": "7.0.0-42-generic",
+  "kernel": "7.0.0-43-generic",
   "label": "dev desktop"
  },
  "sources": {
@@ -30,7 +30,7 @@
    "claude": "task-20261106-132208",
    "codex": "task-20261106-132208",
    "opencode": "task-20261106-132208",
-   "pi": "task-20261106-132208",
+   "pi": "task-20261116-211621",
    "crush": "task-20261115-000143",
    "goose": "task-20261115-200228",
    "gemini": "task-20261115-232549"
@@ -39,7 +39,7 @@
    "claude": "crash-20261106-141500",
    "codex": "crash-20261106-141500",
    "opencode": "crash-20261106-141500",
-   "pi": "crash-20261106-141500",
+   "pi": "crash-20261116-211724",
    "crush": "crash-20261115-000257",
    "goose": "crash-20261115-120732",
    "gemini": "crash-20261115-232724"
@@ -48,7 +48,7 @@
    "claude": "fault-20261106-141450",
    "codex": "fault-20261106-141450",
    "opencode": "fault-20261106-141450",
-   "pi": "fault-20261106-141450",
+   "pi": "fault-20261116-212605",
    "crush": "fault-20261115-002919",
    "goose": "fault-20261115-200328",
    "gemini": "fault-20261115-233702"
@@ -57,7 +57,7 @@
    "claude": "herd-20261106-162244",
    "codex": "herd-20261106-162244",
    "opencode": "herd-20261106-162244",
-   "pi": "herd-20261106-162244",
+   "pi": "herd-20261116-215930",
    "crush": "herd-20261115-005018",
    "goose": "herd-20261115-124316",
    "gemini": "herd-20261116-000436"
@@ -94,8 +94,7 @@
    "name": "Pi",
    "version": "1.4.0 (npm @earendil-works/pi-coding-agent)",
    "status": "measured",
-   "non_default_flags": "models.json anthropic baseUrl+key; settings defaultProvider/defaultModel",
-   "provisional": "measured on a system install missing two declared dependencies (pi-telemetry, AWS Bedrock SDK), about 16 MiB less private RAM per process than the npm package; full rerun with the pinned npm package pending"
+   "non_default_flags": "models.json anthropic baseUrl+key; settings defaultProvider/defaultModel"
   },
   {
    "id": "crush",
@@ -111,8 +110,7 @@
    "version": "goose 1.59.1",
    "status": "measured",
    "non_default_flags": "GOOSE_PROVIDER=anthropic, GOOSE_MODEL, ANTHROPIC_HOST+ANTHROPIC_API_KEY, GOOSE_DISABLE_KEYRING=1, GOOSE_MODE=auto; telemetry consent pre-answered with its default (yes)",
-   "note": "line-based interactive CLI, not full-screen; its developer tools run in-process (no separate MCP process observed in 1.59.1)",
-   "provisional": "partial: marathon and resumed sessions pending (rerun after a mock fix)"
+   "note": "line-based interactive CLI, not full-screen; its developer tools run in-process (no separate MCP process observed in 1.59.1)"
   },
   {
    "id": "gemini",
@@ -120,8 +118,7 @@
    "version": "gemini-cli 0.68.0",
    "status": "measured",
    "non_default_flags": "settings security.auth.selectedType=gemini-api-key; GEMINI_API_KEY dummy + GOOGLE_GEMINI_BASE_URL; -y (yolo), --skip-trust; trustedFolders",
-   "note": "Gemini API format (streamGenerateContent); usage statistics left at default (on) and counted as non-model traffic; model router left at default",
-   "provisional": "partial: marathon and resumed sessions of 60 and 300 steps pending (the mock answered Gemini's loop detector with 'looping', rerun after the fix)"
+   "note": "Gemini API format (streamGenerateContent); usage statistics left at default (on) and counted as non-model traffic; model router left at default"
   },
   {
    "id": "cursor-cli",
@@ -2147,102 +2144,102 @@
    "metric": "task_anon_mib",
    "n_agents": 1,
    "runs": 5,
-   "median": 54.6,
-   "min": 53.6,
-   "max": 54.9,
+   "median": 71.7,
+   "min": 71.4,
+   "max": 72.5,
    "values": [
-    54.7,
-    53.6,
-    54.6,
-    54.5,
-    54.9
+    71.7,
+    72.5,
+    71.4,
+    71.6,
+    71.7
    ],
-   "source": "task-20261106-132208"
+   "source": "task-20261116-211621"
   },
   {
    "harness": "pi",
    "metric": "task_rss_mib",
    "n_agents": 1,
    "runs": 5,
-   "median": 92.3,
-   "min": 91.4,
-   "max": 92.8,
+   "median": 108.1,
+   "min": 107.9,
+   "max": 108.9,
    "values": [
-    92.4,
-    91.4,
-    92.3,
-    92.2,
-    92.8
+    108.3,
+    108.9,
+    107.9,
+    108.0,
+    108.1
    ],
-   "source": "task-20261106-132208"
+   "source": "task-20261116-211621"
   },
   {
    "harness": "pi",
    "metric": "task_cpu_s",
    "n_agents": 1,
    "runs": 5,
-   "median": 0.54,
-   "min": 0.53,
-   "max": 0.73,
+   "median": 0.83,
+   "min": 0.67,
+   "max": 0.95,
    "values": [
-    0.53,
-    0.54,
-    0.54,
-    0.73,
-    0.58
+    0.67,
+    0.83,
+    0.81,
+    0.9,
+    0.95
    ],
-   "source": "task-20261106-132208"
+   "source": "task-20261116-211621"
   },
   {
    "harness": "pi",
    "metric": "task_first_request_s",
    "n_agents": 1,
    "runs": 5,
-   "median": 0.355,
-   "min": 0.333,
-   "max": 0.525,
+   "median": 0.59,
+   "min": 0.394,
+   "max": 0.768,
    "values": [
-    0.34,
-    0.355,
-    0.333,
-    0.525,
-    0.368
+    0.394,
+    0.59,
+    0.567,
+    0.643,
+    0.768
    ],
-   "source": "task-20261106-132208"
+   "source": "task-20261116-211621"
   },
   {
    "harness": "pi",
    "metric": "first_request_kib",
    "n_agents": 1,
    "runs": 5,
-   "median": 4.76,
-   "min": 4.76,
-   "max": 4.76,
+   "median": 6.594,
+   "min": 6.594,
+   "max": 6.594,
    "values": [
-    4.76,
-    4.76,
-    4.76,
-    4.76,
-    4.76
+    6.594,
+    6.594,
+    6.594,
+    6.594,
+    6.594
    ],
-   "source": "task-20261106-132208"
+   "source": "task-20261116-211621"
   },
   {
    "harness": "pi",
    "metric": "task_uncached_ktok",
    "n_agents": 1,
    "runs": 5,
-   "median": 5.484,
-   "min": 5.484,
-   "max": 5.484,
+   "median": 7.358,
+   "min": 7.358,
+   "max": 7.358,
    "values": [
-    5.484,
-    5.484,
-    5.484,
-    5.484,
-    5.484
+    7.358,
+    7.358,
+    7.358,
+    7.358,
+    7.358
    ],
-   "source": "task-20261106-132208"
+   "source": "task-20261116-211621"
   },
   {
    "harness": "pi",
@@ -2259,7 +2256,7 @@
     4,
     4
    ],
-   "source": "task-20261106-132208"
+   "source": "task-20261116-211621"
   },
   {
    "harness": "pi",
@@ -2276,7 +2273,24 @@
     0.0,
     0.0
    ],
-   "source": "task-20261106-132208"
+   "source": "task-20261116-211621"
+  },
+  {
+   "harness": "pi",
+   "metric": "task_canary_leaks",
+   "n_agents": 1,
+   "runs": 5,
+   "median": 0,
+   "min": 0,
+   "max": 0,
+   "values": [
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "source": "task-20261116-211621"
   },
   {
    "harness": "pi",
@@ -2291,7 +2305,7 @@
     0.0,
     0.0
    ],
-   "source": "crash-20261106-141500"
+   "source": "crash-20261116-211724"
   },
   {
    "harness": "pi",
@@ -2306,7 +2320,7 @@
     1.0,
     1.0
    ],
-   "source": "crash-20261106-141500"
+   "source": "crash-20261116-211724"
   },
   {
    "harness": "pi",
@@ -2321,7 +2335,7 @@
     0.0,
     0.0
    ],
-   "source": "crash-20261106-141500"
+   "source": "crash-20261116-211724"
   },
   {
    "harness": "pi",
@@ -2336,7 +2350,7 @@
     0.0,
     0.0
    ],
-   "source": "crash-20261106-141500"
+   "source": "crash-20261116-211724"
   },
   {
    "harness": "pi",
@@ -2351,7 +2365,7 @@
     0.0,
     0.0
    ],
-   "source": "crash-20261106-141500"
+   "source": "crash-20261116-211724"
   },
   {
    "harness": "pi",
@@ -2366,7 +2380,7 @@
     0.0,
     0.0
    ],
-   "source": "crash-20261106-141500"
+   "source": "crash-20261116-211724"
   },
   {
    "harness": "pi",
@@ -2381,7 +2395,7 @@
     0.0,
     0.0
    ],
-   "source": "crash-20261106-141500"
+   "source": "crash-20261116-211724"
   },
   {
    "harness": "pi",
@@ -2396,7 +2410,7 @@
     0.0,
     0.0
    ],
-   "source": "crash-20261106-141500"
+   "source": "crash-20261116-211724"
   },
   {
    "harness": "pi",
@@ -2410,7 +2424,7 @@
     1.0,
     1.0
    ],
-   "source": "fault-20261106-141450"
+   "source": "fault-20261116-212605"
   },
   {
    "harness": "pi",
@@ -2424,7 +2438,7 @@
     0.0,
     0.0
    ],
-   "source": "fault-20261106-141450"
+   "source": "fault-20261116-212605"
   },
   {
    "harness": "pi",
@@ -2438,7 +2452,7 @@
     1.0,
     1.0
    ],
-   "source": "fault-20261106-141450"
+   "source": "fault-20261116-212605"
   },
   {
    "harness": "pi",
@@ -2452,7 +2466,7 @@
     1.0,
     1.0
    ],
-   "source": "fault-20261106-141450"
+   "source": "fault-20261116-212605"
   },
   {
    "harness": "pi",
@@ -2466,7 +2480,7 @@
     0.0,
     0.0
    ],
-   "source": "fault-20261106-141450"
+   "source": "fault-20261116-212605"
   },
   {
    "harness": "pi",
@@ -2480,7 +2494,7 @@
     0.0,
     0.0
    ],
-   "source": "fault-20261106-141450"
+   "source": "fault-20261116-212605"
   },
   {
    "harness": "pi",
@@ -2494,7 +2508,7 @@
     1.0,
     1.0
    ],
-   "source": "fault-20261106-141450"
+   "source": "fault-20261116-212605"
   },
   {
    "harness": "pi",
@@ -2508,7 +2522,7 @@
     1.0,
     1.0
    ],
-   "source": "fault-20261106-141450"
+   "source": "fault-20261116-212605"
   },
   {
    "harness": "pi",
@@ -2522,7 +2536,7 @@
     1.0,
     1.0
    ],
-   "source": "fault-20261106-141450"
+   "source": "fault-20261116-212605"
   },
   {
    "harness": "pi",
@@ -2536,7 +2550,7 @@
     1.0,
     1.0
    ],
-   "source": "fault-20261106-141450"
+   "source": "fault-20261116-212605"
   },
   {
    "harness": "pi",
@@ -2550,7 +2564,7 @@
     1.0,
     1.0
    ],
-   "source": "fault-20261106-141450"
+   "source": "fault-20261116-212605"
   },
   {
    "harness": "pi",
@@ -2564,21 +2578,21 @@
     0.0,
     0.0
    ],
-   "source": "fault-20261106-141450"
+   "source": "fault-20261116-212605"
   },
   {
    "harness": "pi",
    "metric": "fault_tool-hang_done_alone",
    "n_agents": 1,
    "runs": 2,
-   "median": 1.0,
-   "min": 1.0,
-   "max": 1.0,
+   "median": 0.0,
+   "min": 0.0,
+   "max": 0.0,
    "values": [
-    1.0,
-    1.0
+    0.0,
+    0.0
    ],
-   "source": "fault-20261106-141450"
+   "source": "fault-20261116-212605"
   },
   {
    "harness": "pi",
@@ -2592,7 +2606,7 @@
     1.0,
     1.0
    ],
-   "source": "fault-20261106-141450"
+   "source": "fault-20261116-212605"
   },
   {
    "harness": "pi",
@@ -2606,7 +2620,7 @@
     0.0,
     0.0
    ],
-   "source": "fault-20261106-141450"
+   "source": "fault-20261116-212605"
   },
   {
    "harness": "pi",
@@ -2620,7 +2634,7 @@
     0.0,
     0.0
    ],
-   "source": "herd-20261106-162244"
+   "source": "herd-20261116-215930"
   },
   {
    "harness": "pi",
@@ -2634,7 +2648,7 @@
     0.0,
     0.0
    ],
-   "source": "herd-20261106-162244"
+   "source": "herd-20261116-215930"
   },
   {
    "harness": "crush",
@@ -6979,13 +6993,13 @@
    "metric": "idle_anon_mib_per_agent",
    "n_agents": 1,
    "runs": 1,
-   "median": 98.5,
-   "min": 98.5,
-   "max": 98.5,
+   "median": 107.8,
+   "min": 107.8,
+   "max": 107.8,
    "values": [
-    98.5
+    107.8
    ],
-   "source": "idle-pi-1-hblong-tmux-20261107-083953",
+   "source": "idle-pi-1-hblong-tmux-20261116-221625",
    "hold_s": 300,
    "comparable": false
   },
@@ -6994,13 +7008,13 @@
    "metric": "idle_cpu_s_per_agent_hour",
    "n_agents": 1,
    "runs": 1,
-   "median": 0.24,
-   "min": 0.24,
-   "max": 0.24,
+   "median": 0.12,
+   "min": 0.12,
+   "max": 0.12,
    "values": [
-    0.24
+    0.12
    ],
-   "source": "idle-pi-1-hblong-tmux-20261107-083953",
+   "source": "idle-pi-1-hblong-tmux-20261116-221625",
    "hold_s": 300,
    "comparable": false
   },
@@ -7015,7 +7029,7 @@
    "values": [
     0.0
    ],
-   "source": "idle-pi-1-hblong-tmux-20261107-083953",
+   "source": "idle-pi-1-hblong-tmux-20261116-221625",
    "hold_s": 300,
    "comparable": false
   },
@@ -7024,13 +7038,13 @@
    "metric": "disk_state_mib",
    "n_agents": 1,
    "runs": 1,
-   "median": 12.1,
-   "min": 12.1,
-   "max": 12.1,
+   "median": 12.0,
+   "min": 12.0,
+   "max": 12.0,
    "values": [
-    12.1
+    12.0
    ],
-   "source": "idle-pi-1-hblong-tmux-20261107-083953",
+   "source": "idle-pi-1-hblong-tmux-20261116-221625",
    "hold_s": 300,
    "comparable": false
   },
@@ -7039,13 +7053,13 @@
    "metric": "fleet_agents_per_gib",
    "n_agents": 1,
    "runs": 1,
-   "median": 10.396,
-   "min": 10.396,
-   "max": 10.396,
+   "median": 9.499,
+   "min": 9.499,
+   "max": 9.499,
    "values": [
-    10.396
+    9.499
    ],
-   "source": "idle-pi-1-hblong-tmux-20261107-083953",
+   "source": "idle-pi-1-hblong-tmux-20261116-221625",
    "hold_s": 300,
    "comparable": false
   },
@@ -7054,13 +7068,13 @@
    "metric": "after_work_anon_mib_per_agent",
    "n_agents": 1,
    "runs": 1,
-   "median": 78.3,
-   "min": 78.3,
-   "max": 78.3,
+   "median": 89.2,
+   "min": 89.2,
+   "max": 89.2,
    "values": [
-    78.3
+    89.2
    ],
-   "source": "idle-pi-1-hblong-tmux-20261107-083953",
+   "source": "idle-pi-1-hblong-tmux-20261116-221625",
    "hold_s": 300
   },
   {
@@ -7068,13 +7082,13 @@
    "metric": "harness_anon_mib_per_agent",
    "n_agents": 1,
    "runs": 1,
-   "median": 97.1,
-   "min": 97.1,
-   "max": 97.1,
+   "median": 106.4,
+   "min": 106.4,
+   "max": 106.4,
    "values": [
-    97.1
+    106.4
    ],
-   "source": "idle-pi-1-hblong-tmux-20261107-083953",
+   "source": "idle-pi-1-hblong-tmux-20261116-221625",
    "hold_s": 300
   },
   {
@@ -7082,13 +7096,13 @@
    "metric": "terminal_anon_mib_per_agent",
    "n_agents": 1,
    "runs": 1,
-   "median": 1.3,
-   "min": 1.3,
-   "max": 1.3,
+   "median": 1.4,
+   "min": 1.4,
+   "max": 1.4,
    "values": [
-    1.3
+    1.4
    ],
-   "source": "idle-pi-1-hblong-tmux-20261107-083953",
+   "source": "idle-pi-1-hblong-tmux-20261116-221625",
    "hold_s": 300
   },
   {
@@ -7102,7 +7116,7 @@
    "values": [
     0.0
    ],
-   "source": "idle-pi-1-hblong-tmux-20261107-083953",
+   "source": "idle-pi-1-hblong-tmux-20261116-221625",
    "hold_s": 300
   },
   {
@@ -7110,13 +7124,13 @@
    "metric": "work_peak_anon_mib_per_agent",
    "n_agents": 1,
    "runs": 1,
-   "median": 97.1,
-   "min": 97.1,
-   "max": 97.1,
+   "median": 106.4,
+   "min": 106.4,
+   "max": 106.4,
    "values": [
-    97.1
+    106.4
    ],
-   "source": "idle-pi-1-hblong-tmux-20261107-083953",
+   "source": "idle-pi-1-hblong-tmux-20261116-221625",
    "hold_s": 300
   },
   {
@@ -7124,13 +7138,13 @@
    "metric": "idle_300s_anon_mib_per_agent",
    "n_agents": 1,
    "runs": 1,
-   "median": 98.5,
-   "min": 98.5,
-   "max": 98.5,
+   "median": 107.8,
+   "min": 107.8,
+   "max": 107.8,
    "values": [
-    98.5
+    107.8
    ],
-   "source": "idle-pi-1-hblong-tmux-20261107-083953",
+   "source": "idle-pi-1-hblong-tmux-20261116-221625",
    "hold_s": 300,
    "comparable": false
   },
@@ -7139,13 +7153,13 @@
    "metric": "burst_cpu_s_per_agent",
    "n_agents": 1,
    "runs": 1,
-   "median": 0.222,
-   "min": 0.222,
-   "max": 0.222,
+   "median": 0.134,
+   "min": 0.134,
+   "max": 0.134,
    "values": [
-    0.222
+    0.134
    ],
-   "source": "idle-pi-1-hblong-tmux-20261107-083953",
+   "source": "idle-pi-1-hblong-tmux-20261116-221625",
    "hold_s": 300
   },
   {
@@ -7153,13 +7167,13 @@
    "metric": "burst_turn_s_p50",
    "n_agents": 1,
    "runs": 1,
-   "median": 5.69,
-   "min": 5.69,
-   "max": 5.69,
+   "median": 5.7,
+   "min": 5.7,
+   "max": 5.7,
    "values": [
-    5.69
+    5.7
    ],
-   "source": "idle-pi-1-hblong-tmux-20261107-083953",
+   "source": "idle-pi-1-hblong-tmux-20261116-221625",
    "hold_s": 300
   },
   {
@@ -7167,13 +7181,13 @@
    "metric": "burst_turn_s_p90",
    "n_agents": 1,
    "runs": 1,
-   "median": 5.69,
-   "min": 5.69,
-   "max": 5.69,
+   "median": 5.7,
+   "min": 5.7,
+   "max": 5.7,
    "values": [
-    5.69
+    5.7
    ],
-   "source": "idle-pi-1-hblong-tmux-20261107-083953",
+   "source": "idle-pi-1-hblong-tmux-20261116-221625",
    "hold_s": 300
   },
   {
@@ -7181,13 +7195,13 @@
    "metric": "idle_anon_mib_per_agent",
    "n_agents": 10,
    "runs": 1,
-   "median": 94.42,
-   "min": 94.42,
-   "max": 94.42,
+   "median": 105.84,
+   "min": 105.84,
+   "max": 105.84,
    "values": [
-    94.42
+    105.84
    ],
-   "source": "idle-pi-10-hblong-tmux-20261107-142840",
+   "source": "idle-pi-10-hblong-tmux-20261116-222309",
    "hold_s": 900,
    "comparable": true
   },
@@ -7196,13 +7210,13 @@
    "metric": "idle_cpu_s_per_agent_hour",
    "n_agents": 10,
    "runs": 1,
-   "median": 0.032,
-   "min": 0.032,
-   "max": 0.032,
+   "median": 0.028,
+   "min": 0.028,
+   "max": 0.028,
    "values": [
-    0.032
+    0.028
    ],
-   "source": "idle-pi-10-hblong-tmux-20261107-142840",
+   "source": "idle-pi-10-hblong-tmux-20261116-222309",
    "hold_s": 900,
    "comparable": true
   },
@@ -7217,7 +7231,7 @@
    "values": [
     0.0
    ],
-   "source": "idle-pi-10-hblong-tmux-20261107-142840",
+   "source": "idle-pi-10-hblong-tmux-20261116-222309",
    "hold_s": 900,
    "comparable": true
   },
@@ -7226,13 +7240,13 @@
    "metric": "disk_state_mib",
    "n_agents": 10,
    "runs": 1,
-   "median": 15.3,
-   "min": 15.3,
-   "max": 15.3,
+   "median": 15.6,
+   "min": 15.6,
+   "max": 15.6,
    "values": [
-    15.3
+    15.6
    ],
-   "source": "idle-pi-10-hblong-tmux-20261107-142840",
+   "source": "idle-pi-10-hblong-tmux-20261116-222309",
    "hold_s": 900,
    "comparable": true
   },
@@ -7241,13 +7255,13 @@
    "metric": "fleet_agents_per_gib",
    "n_agents": 10,
    "runs": 1,
-   "median": 10.845,
-   "min": 10.845,
-   "max": 10.845,
+   "median": 9.675,
+   "min": 9.675,
+   "max": 9.675,
    "values": [
-    10.845
+    9.675
    ],
-   "source": "idle-pi-10-hblong-tmux-20261107-142840",
+   "source": "idle-pi-10-hblong-tmux-20261116-222309",
    "hold_s": 900,
    "comparable": true
   },
@@ -7256,13 +7270,13 @@
    "metric": "after_work_anon_mib_per_agent",
    "n_agents": 10,
    "runs": 1,
-   "median": 87.78,
-   "min": 87.78,
-   "max": 87.78,
+   "median": 98.07,
+   "min": 98.07,
+   "max": 98.07,
    "values": [
-    87.78
+    98.07
    ],
-   "source": "idle-pi-10-hblong-tmux-20261107-142840",
+   "source": "idle-pi-10-hblong-tmux-20261116-222309",
    "hold_s": 900
   },
   {
@@ -7270,13 +7284,13 @@
    "metric": "harness_anon_mib_per_agent",
    "n_agents": 10,
    "runs": 1,
-   "median": 94.19,
-   "min": 94.19,
-   "max": 94.19,
+   "median": 105.64,
+   "min": 105.64,
+   "max": 105.64,
    "values": [
-    94.19
+    105.64
    ],
-   "source": "idle-pi-10-hblong-tmux-20261107-142840",
+   "source": "idle-pi-10-hblong-tmux-20261116-222309",
    "hold_s": 900
   },
   {
@@ -7284,13 +7298,13 @@
    "metric": "terminal_anon_mib_per_agent",
    "n_agents": 10,
    "runs": 1,
-   "median": 0.23,
-   "min": 0.23,
-   "max": 0.23,
+   "median": 0.2,
+   "min": 0.2,
+   "max": 0.2,
    "values": [
-    0.23
+    0.2
    ],
-   "source": "idle-pi-10-hblong-tmux-20261107-142840",
+   "source": "idle-pi-10-hblong-tmux-20261116-222309",
    "hold_s": 900
   },
   {
@@ -7304,7 +7318,7 @@
    "values": [
     0.0
    ],
-   "source": "idle-pi-10-hblong-tmux-20261107-142840",
+   "source": "idle-pi-10-hblong-tmux-20261116-222309",
    "hold_s": 900
   },
   {
@@ -7312,13 +7326,13 @@
    "metric": "work_peak_anon_mib_per_agent",
    "n_agents": 10,
    "runs": 1,
-   "median": 94.19,
-   "min": 94.19,
-   "max": 94.19,
+   "median": 105.64,
+   "min": 105.64,
+   "max": 105.64,
    "values": [
-    94.19
+    105.64
    ],
-   "source": "idle-pi-10-hblong-tmux-20261107-142840",
+   "source": "idle-pi-10-hblong-tmux-20261116-222309",
    "hold_s": 900
   },
   {
@@ -7326,13 +7340,13 @@
    "metric": "idle_300s_anon_mib_per_agent",
    "n_agents": 10,
    "runs": 1,
-   "median": 94.42,
-   "min": 94.42,
-   "max": 94.42,
+   "median": 105.84,
+   "min": 105.84,
+   "max": 105.84,
    "values": [
-    94.42
+    105.84
    ],
-   "source": "idle-pi-10-hblong-tmux-20261107-142840",
+   "source": "idle-pi-10-hblong-tmux-20261116-222309",
    "hold_s": 900,
    "comparable": true
   },
@@ -7341,13 +7355,13 @@
    "metric": "burst_cpu_s_per_agent",
    "n_agents": 10,
    "runs": 1,
-   "median": 0.221,
-   "min": 0.221,
-   "max": 0.221,
+   "median": 0.183,
+   "min": 0.183,
+   "max": 0.183,
    "values": [
-    0.221
+    0.183
    ],
-   "source": "idle-pi-10-hblong-tmux-20261107-142840",
+   "source": "idle-pi-10-hblong-tmux-20261116-222309",
    "hold_s": 900
   },
   {
@@ -7361,7 +7375,7 @@
    "values": [
     5.72
    ],
-   "source": "idle-pi-10-hblong-tmux-20261107-142840",
+   "source": "idle-pi-10-hblong-tmux-20261116-222309",
    "hold_s": 900
   },
   {
@@ -7369,103 +7383,27 @@
    "metric": "burst_turn_s_p90",
    "n_agents": 10,
    "runs": 1,
-   "median": 5.74,
-   "min": 5.74,
-   "max": 5.74,
+   "median": 5.75,
+   "min": 5.75,
+   "max": 5.75,
    "values": [
-    5.74
+    5.75
    ],
-   "source": "idle-pi-10-hblong-tmux-20261107-142840",
+   "source": "idle-pi-10-hblong-tmux-20261116-222309",
    "hold_s": 900
   },
   {
    "harness": "pi",
    "metric": "idle_anon_mib_per_agent",
-   "n_agents": 5,
-   "runs": 1,
-   "median": 78.12,
-   "min": 78.12,
-   "max": 78.12,
-   "values": [
-    78.12
-   ],
-   "source": "idle-pi-5-hblong-tmux-20261106-153410",
-   "hold_s": 300,
-   "comparable": false
-  },
-  {
-   "harness": "pi",
-   "metric": "idle_cpu_s_per_agent_hour",
-   "n_agents": 5,
-   "runs": 1,
-   "median": 0.072,
-   "min": 0.072,
-   "max": 0.072,
-   "values": [
-    0.072
-   ],
-   "source": "idle-pi-5-hblong-tmux-20261106-153410",
-   "hold_s": 300,
-   "comparable": false
-  },
-  {
-   "harness": "pi",
-   "metric": "idle_net_out_kib_per_agent_hour",
-   "n_agents": 5,
-   "runs": 1,
-   "median": 0.0,
-   "min": 0.0,
-   "max": 0.0,
-   "values": [
-    0.0
-   ],
-   "source": "idle-pi-5-hblong-tmux-20261106-153410",
-   "hold_s": 300,
-   "comparable": false
-  },
-  {
-   "harness": "pi",
-   "metric": "disk_state_mib",
-   "n_agents": 5,
-   "runs": 1,
-   "median": 13.4,
-   "min": 13.4,
-   "max": 13.4,
-   "values": [
-    13.4
-   ],
-   "source": "idle-pi-5-hblong-tmux-20261106-153410",
-   "hold_s": 300,
-   "comparable": false
-  },
-  {
-   "harness": "pi",
-   "metric": "fleet_agents_per_gib",
-   "n_agents": 5,
-   "runs": 1,
-   "median": 13.108,
-   "min": 13.108,
-   "max": 13.108,
-   "values": [
-    13.108
-   ],
-   "source": "idle-pi-5-hblong-tmux-20261106-153410",
-   "hold_s": 300,
-   "comparable": false
-  },
-  {
-   "harness": "pi",
-   "metric": "idle_anon_mib_per_agent",
    "n_agents": 50,
-   "runs": 2,
-   "median": 85.935,
-   "min": 77.054,
-   "max": 94.816,
+   "runs": 1,
+   "median": 105.558,
+   "min": 105.558,
+   "max": 105.558,
    "values": [
-    77.054,
-    94.816
+    105.558
    ],
-   "source": "idle-pi-50-hblong-tmux-20261106-144956,idle-pi-50-hblong-tmux-20261107-110746",
+   "source": "idle-pi-50-hblong-tmux-20261116-224006",
    "hold_s": 3600,
    "comparable": false
   },
@@ -7473,15 +7411,14 @@
    "harness": "pi",
    "metric": "idle_cpu_s_per_agent_hour",
    "n_agents": 50,
-   "runs": 2,
+   "runs": 1,
    "median": 0.011,
    "min": 0.011,
-   "max": 0.012,
+   "max": 0.011,
    "values": [
-    0.012,
     0.011
    ],
-   "source": "idle-pi-50-hblong-tmux-20261106-144956,idle-pi-50-hblong-tmux-20261107-110746",
+   "source": "idle-pi-50-hblong-tmux-20261116-224006",
    "hold_s": 3600,
    "comparable": false
   },
@@ -7489,15 +7426,14 @@
    "harness": "pi",
    "metric": "idle_net_out_kib_per_agent_hour",
    "n_agents": 50,
-   "runs": 2,
+   "runs": 1,
    "median": 0.0,
    "min": 0.0,
    "max": 0.0,
    "values": [
-    0.0,
     0.0
    ],
-   "source": "idle-pi-50-hblong-tmux-20261106-144956,idle-pi-50-hblong-tmux-20261107-110746",
+   "source": "idle-pi-50-hblong-tmux-20261116-224006",
    "hold_s": 3600,
    "comparable": false
   },
@@ -7505,15 +7441,14 @@
    "harness": "pi",
    "metric": "disk_state_mib",
    "n_agents": 50,
-   "runs": 2,
-   "median": 29.7,
-   "min": 28.4,
-   "max": 31.0,
+   "runs": 1,
+   "median": 31.1,
+   "min": 31.1,
+   "max": 31.1,
    "values": [
-    28.4,
-    31.0
+    31.1
    ],
-   "source": "idle-pi-50-hblong-tmux-20261106-144956,idle-pi-50-hblong-tmux-20261107-110746",
+   "source": "idle-pi-50-hblong-tmux-20261116-224006",
    "hold_s": 3600,
    "comparable": false
   },
@@ -7521,15 +7456,14 @@
    "harness": "pi",
    "metric": "fleet_agents_per_gib",
    "n_agents": 50,
-   "runs": 2,
-   "median": 12.045,
-   "min": 10.8,
-   "max": 13.289,
+   "runs": 1,
+   "median": 9.701,
+   "min": 9.701,
+   "max": 9.701,
    "values": [
-    13.289,
-    10.8
+    9.701
    ],
-   "source": "idle-pi-50-hblong-tmux-20261106-144956,idle-pi-50-hblong-tmux-20261107-110746",
+   "source": "idle-pi-50-hblong-tmux-20261116-224006",
    "hold_s": 3600,
    "comparable": false
   },
@@ -7538,13 +7472,13 @@
    "metric": "after_work_anon_mib_per_agent",
    "n_agents": 50,
    "runs": 1,
-   "median": 93.318,
-   "min": 93.318,
-   "max": 93.318,
+   "median": 104.11,
+   "min": 104.11,
+   "max": 104.11,
    "values": [
-    93.318
+    104.11
    ],
-   "source": "idle-pi-50-hblong-tmux-20261106-144956,idle-pi-50-hblong-tmux-20261107-110746",
+   "source": "idle-pi-50-hblong-tmux-20261116-224006",
    "hold_s": 3600
   },
   {
@@ -7552,13 +7486,13 @@
    "metric": "harness_anon_mib_per_agent",
    "n_agents": 50,
    "runs": 1,
-   "median": 94.702,
-   "min": 94.702,
-   "max": 94.702,
+   "median": 105.46,
+   "min": 105.46,
+   "max": 105.46,
    "values": [
-    94.702
+    105.46
    ],
-   "source": "idle-pi-50-hblong-tmux-20261106-144956,idle-pi-50-hblong-tmux-20261107-110746",
+   "source": "idle-pi-50-hblong-tmux-20261116-224006",
    "hold_s": 3600
   },
   {
@@ -7566,13 +7500,13 @@
    "metric": "terminal_anon_mib_per_agent",
    "n_agents": 50,
    "runs": 1,
-   "median": 0.112,
-   "min": 0.112,
-   "max": 0.112,
+   "median": 0.098,
+   "min": 0.098,
+   "max": 0.098,
    "values": [
-    0.112
+    0.098
    ],
-   "source": "idle-pi-50-hblong-tmux-20261106-144956,idle-pi-50-hblong-tmux-20261107-110746",
+   "source": "idle-pi-50-hblong-tmux-20261116-224006",
    "hold_s": 3600
   },
   {
@@ -7586,7 +7520,7 @@
    "values": [
     0.0
    ],
-   "source": "idle-pi-50-hblong-tmux-20261106-144956,idle-pi-50-hblong-tmux-20261107-110746",
+   "source": "idle-pi-50-hblong-tmux-20261116-224006",
    "hold_s": 3600
   },
   {
@@ -7594,13 +7528,13 @@
    "metric": "work_peak_anon_mib_per_agent",
    "n_agents": 50,
    "runs": 1,
-   "median": 94.698,
-   "min": 94.698,
-   "max": 94.698,
+   "median": 105.458,
+   "min": 105.458,
+   "max": 105.458,
    "values": [
-    94.698
+    105.458
    ],
-   "source": "idle-pi-50-hblong-tmux-20261106-144956,idle-pi-50-hblong-tmux-20261107-110746",
+   "source": "idle-pi-50-hblong-tmux-20261116-224006",
    "hold_s": 3600
   },
   {
@@ -7608,13 +7542,13 @@
    "metric": "idle_300s_anon_mib_per_agent",
    "n_agents": 50,
    "runs": 1,
-   "median": 94.824,
-   "min": 94.824,
-   "max": 94.824,
+   "median": 105.558,
+   "min": 105.558,
+   "max": 105.558,
    "values": [
-    94.824
+    105.558
    ],
-   "source": "idle-pi-50-hblong-tmux-20261106-144956,idle-pi-50-hblong-tmux-20261107-110746",
+   "source": "idle-pi-50-hblong-tmux-20261116-224006",
    "hold_s": 3600,
    "comparable": false
   },
@@ -7623,13 +7557,13 @@
    "metric": "idle_3600s_anon_mib_per_agent",
    "n_agents": 50,
    "runs": 1,
-   "median": 94.816,
-   "min": 94.816,
-   "max": 94.816,
+   "median": 105.558,
+   "min": 105.558,
+   "max": 105.558,
    "values": [
-    94.816
+    105.558
    ],
-   "source": "idle-pi-50-hblong-tmux-20261106-144956,idle-pi-50-hblong-tmux-20261107-110746",
+   "source": "idle-pi-50-hblong-tmux-20261116-224006",
    "hold_s": 3600,
    "comparable": false
   },
@@ -7638,13 +7572,13 @@
    "metric": "burst_cpu_s_per_agent",
    "n_agents": 50,
    "runs": 1,
-   "median": 0.255,
-   "min": 0.255,
-   "max": 0.255,
+   "median": 0.207,
+   "min": 0.207,
+   "max": 0.207,
    "values": [
-    0.255
+    0.207
    ],
-   "source": "idle-pi-50-hblong-tmux-20261106-144956,idle-pi-50-hblong-tmux-20261107-110746",
+   "source": "idle-pi-50-hblong-tmux-20261116-224006",
    "hold_s": 3600
   },
   {
@@ -7658,7 +7592,7 @@
    "values": [
     5.85
    ],
-   "source": "idle-pi-50-hblong-tmux-20261106-144956,idle-pi-50-hblong-tmux-20261107-110746",
+   "source": "idle-pi-50-hblong-tmux-20261116-224006",
    "hold_s": 3600
   },
   {
@@ -7666,13 +7600,13 @@
    "metric": "burst_turn_s_p90",
    "n_agents": 50,
    "runs": 1,
-   "median": 5.96,
-   "min": 5.96,
-   "max": 5.96,
+   "median": 5.94,
+   "min": 5.94,
+   "max": 5.94,
    "values": [
-    5.96
+    5.94
    ],
-   "source": "idle-pi-50-hblong-tmux-20261106-144956,idle-pi-50-hblong-tmux-20261107-110746",
+   "source": "idle-pi-50-hblong-tmux-20261116-224006",
    "hold_s": 3600
   },
   {
@@ -7680,13 +7614,13 @@
    "metric": "burst_turn_inflation",
    "n_agents": 10,
    "runs": 1,
-   "median": 1.005,
-   "min": 1.005,
-   "max": 1.005,
+   "median": 1.004,
+   "min": 1.004,
+   "max": 1.004,
    "values": [
-    1.005
+    1.004
    ],
-   "source": "idle-pi-10-hblong-tmux-20261107-142840",
+   "source": "idle-pi-10-hblong-tmux-20261116-222309",
    "hold_s": 900
   },
   {
@@ -7694,13 +7628,13 @@
    "metric": "burst_turn_inflation",
    "n_agents": 50,
    "runs": 1,
-   "median": 1.028,
-   "min": 1.028,
-   "max": 1.028,
+   "median": 1.026,
+   "min": 1.026,
+   "max": 1.026,
    "values": [
-    1.028
+    1.026
    ],
-   "source": "idle-pi-50-hblong-tmux-20261106-144956,idle-pi-50-hblong-tmux-20261107-110746",
+   "source": "idle-pi-50-hblong-tmux-20261116-224006",
    "hold_s": 3600
   },
   {
@@ -7708,13 +7642,13 @@
    "metric": "resumed_anon_mib_per_agent",
    "n_agents": 3,
    "runs": 1,
-   "median": 64.9,
-   "min": 64.9,
-   "max": 64.9,
+   "median": 75.733,
+   "min": 75.733,
+   "max": 75.733,
    "values": [
-    64.9
+    75.733
    ],
-   "source": "resume-pi-300-20261107-120530",
+   "source": "resume-pi-300-20261117-001033",
    "session_mb": 5.21,
    "steps": 300,
    "compactions": 3
@@ -7724,13 +7658,13 @@
    "metric": "resumed_after_turn_anon_mib_per_agent",
    "n_agents": 3,
    "runs": 1,
-   "median": 112.833,
-   "min": 112.833,
-   "max": 112.833,
+   "median": 122.3,
+   "min": 122.3,
+   "max": 122.3,
    "values": [
-    112.833
+    122.3
    ],
-   "source": "resume-pi-300-20261107-120530",
+   "source": "resume-pi-300-20261117-001033",
    "session_mb": 5.21,
    "steps": 300,
    "compactions": 3
@@ -7740,13 +7674,13 @@
    "metric": "resumed_idle_300s_anon_mib_per_agent",
    "n_agents": 3,
    "runs": 1,
-   "median": 100.067,
-   "min": 100.067,
-   "max": 100.067,
+   "median": 109.233,
+   "min": 109.233,
+   "max": 109.233,
    "values": [
-    100.067
+    109.233
    ],
-   "source": "resume-pi-300-20261107-120530",
+   "source": "resume-pi-300-20261117-001033",
    "session_mb": 5.21,
    "steps": 300,
    "compactions": 3
@@ -7756,13 +7690,13 @@
    "metric": "resumed_peak_anon_mib_per_agent",
    "n_agents": 3,
    "runs": 1,
-   "median": 112.839,
-   "min": 112.839,
-   "max": 112.839,
+   "median": 122.316,
+   "min": 122.316,
+   "max": 122.316,
    "values": [
-    112.839
+    122.316
    ],
-   "source": "resume-pi-300-20261107-120530",
+   "source": "resume-pi-300-20261117-001033",
    "session_mb": 5.21,
    "steps": 300,
    "compactions": 3
@@ -7772,13 +7706,13 @@
    "metric": "resumed_anon_mib_per_agent",
    "n_agents": 3,
    "runs": 1,
-   "median": 53.567,
-   "min": 53.567,
-   "max": 53.567,
+   "median": 69.6,
+   "min": 69.6,
+   "max": 69.6,
    "values": [
-    53.567
+    69.6
    ],
-   "source": "resume-pi-5-20261107-074409",
+   "source": "resume-pi-5-20261116-235859",
    "session_mb": 0.1,
    "steps": 5,
    "compactions": 0
@@ -7788,13 +7722,13 @@
    "metric": "resumed_after_turn_anon_mib_per_agent",
    "n_agents": 3,
    "runs": 1,
-   "median": 80.367,
-   "min": 80.367,
-   "max": 80.367,
+   "median": 87.2,
+   "min": 87.2,
+   "max": 87.2,
    "values": [
-    80.367
+    87.2
    ],
-   "source": "resume-pi-5-20261107-074409",
+   "source": "resume-pi-5-20261116-235859",
    "session_mb": 0.1,
    "steps": 5,
    "compactions": 0
@@ -7804,13 +7738,13 @@
    "metric": "resumed_idle_300s_anon_mib_per_agent",
    "n_agents": 3,
    "runs": 1,
-   "median": 80.367,
-   "min": 80.367,
-   "max": 80.367,
+   "median": 87.2,
+   "min": 87.2,
+   "max": 87.2,
    "values": [
-    80.367
+    87.2
    ],
-   "source": "resume-pi-5-20261107-074409",
+   "source": "resume-pi-5-20261116-235859",
    "session_mb": 0.1,
    "steps": 5,
    "compactions": 0
@@ -7820,13 +7754,13 @@
    "metric": "resumed_peak_anon_mib_per_agent",
    "n_agents": 3,
    "runs": 1,
-   "median": 80.374,
-   "min": 80.374,
-   "max": 80.374,
+   "median": 87.2,
+   "min": 87.2,
+   "max": 87.2,
    "values": [
-    80.374
+    87.2
    ],
-   "source": "resume-pi-5-20261107-074409",
+   "source": "resume-pi-5-20261116-235859",
    "session_mb": 0.1,
    "steps": 5,
    "compactions": 0
@@ -7836,13 +7770,13 @@
    "metric": "resumed_anon_mib_per_agent",
    "n_agents": 3,
    "runs": 1,
-   "median": 58.133,
-   "min": 58.133,
-   "max": 58.133,
+   "median": 72.8,
+   "min": 72.8,
+   "max": 72.8,
    "values": [
-    58.133
+    72.8
    ],
-   "source": "resume-pi-60-20261107-074950",
+   "source": "resume-pi-60-20261117-000441",
    "session_mb": 1.05,
    "steps": 60,
    "compactions": 0
@@ -7852,13 +7786,13 @@
    "metric": "resumed_after_turn_anon_mib_per_agent",
    "n_agents": 3,
    "runs": 1,
-   "median": 105.533,
-   "min": 105.533,
-   "max": 105.533,
+   "median": 117.967,
+   "min": 117.967,
+   "max": 117.967,
    "values": [
-    105.533
+    117.967
    ],
-   "source": "resume-pi-60-20261107-074950",
+   "source": "resume-pi-60-20261117-000441",
    "session_mb": 1.05,
    "steps": 60,
    "compactions": 0
@@ -7868,13 +7802,13 @@
    "metric": "resumed_idle_300s_anon_mib_per_agent",
    "n_agents": 3,
    "runs": 1,
-   "median": 66.567,
-   "min": 66.567,
-   "max": 66.567,
+   "median": 105.4,
+   "min": 105.4,
+   "max": 105.4,
    "values": [
-    66.567
+    105.4
    ],
-   "source": "resume-pi-60-20261107-074950",
+   "source": "resume-pi-60-20261117-000441",
    "session_mb": 1.05,
    "steps": 60,
    "compactions": 0
@@ -7884,13 +7818,13 @@
    "metric": "resumed_peak_anon_mib_per_agent",
    "n_agents": 3,
    "runs": 1,
-   "median": 105.533,
-   "min": 105.533,
-   "max": 105.533,
+   "median": 117.967,
+   "min": 117.967,
+   "max": 117.967,
    "values": [
-    105.533
+    117.967
    ],
-   "source": "resume-pi-60-20261107-074950",
+   "source": "resume-pi-60-20261117-000441",
    "session_mb": 1.05,
    "steps": 60,
    "compactions": 0
@@ -7900,32 +7834,32 @@
    "metric": "marathon_idle_anon_mib",
    "n_agents": 1,
    "runs": 1,
-   "median": 84.1,
-   "min": 84.1,
-   "max": 84.1,
+   "median": 134.0,
+   "min": 134.0,
+   "max": 134.0,
    "values": [
-    84.1
+    134.0
    ],
-   "source": "idle-pi-1-hbmarathon-tmux-20261106-185649",
+   "source": "idle-pi-1-hbmarathon-tmux-20261116-234258",
    "turns": 300,
    "compaction_requests": 1,
-   "max_request_kb": 3923
+   "max_request_kb": 3925
   },
   {
    "harness": "pi",
    "metric": "marathon_peak_anon_mib",
    "n_agents": 1,
    "runs": 1,
-   "median": 161,
-   "min": 161,
-   "max": 161,
+   "median": 154,
+   "min": 154,
+   "max": 154,
    "values": [
-    161
+    154
    ],
-   "source": "idle-pi-1-hbmarathon-tmux-20261106-185649",
+   "source": "idle-pi-1-hbmarathon-tmux-20261116-234258",
    "turns": 300,
    "compaction_requests": 1,
-   "max_request_kb": 3923
+   "max_request_kb": 3925
   },
   {
    "harness": "pi",
@@ -7938,7 +7872,7 @@
    "values": [
     50
    ],
-   "source": "idle-pi-10-hblong-tmux-20261107-142840,idle-pi-50-hblong-tmux-20261106-144956,idle-pi-50-hblong-tmux-20261107-110746"
+   "source": "idle-pi-10-hblong-tmux-20261116-222309,idle-pi-50-hblong-tmux-20261116-224006"
   },
   {
    "harness": "crush",
@@ -9477,6 +9411,230 @@
   },
   {
    "harness": "goose",
+   "metric": "resumed_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
+   "median": 111.433,
+   "min": 111.433,
+   "max": 111.433,
+   "values": [
+    111.433
+   ],
+   "source": "resume-goose-300-20261116-203016",
+   "session_mb": 13.42,
+   "steps": 300,
+   "compactions": 15
+  },
+  {
+   "harness": "goose",
+   "metric": "resumed_after_turn_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
+   "median": 203.367,
+   "min": 203.367,
+   "max": 203.367,
+   "values": [
+    203.367
+   ],
+   "source": "resume-goose-300-20261116-203016",
+   "session_mb": 13.42,
+   "steps": 300,
+   "compactions": 15
+  },
+  {
+   "harness": "goose",
+   "metric": "resumed_idle_300s_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
+   "median": 203.367,
+   "min": 203.367,
+   "max": 203.367,
+   "values": [
+    203.367
+   ],
+   "source": "resume-goose-300-20261116-203016",
+   "session_mb": 13.42,
+   "steps": 300,
+   "compactions": 15
+  },
+  {
+   "harness": "goose",
+   "metric": "resumed_peak_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
+   "median": 203.38,
+   "min": 203.38,
+   "max": 203.38,
+   "values": [
+    203.38
+   ],
+   "source": "resume-goose-300-20261116-203016",
+   "session_mb": 13.42,
+   "steps": 300,
+   "compactions": 15
+  },
+  {
+   "harness": "goose",
+   "metric": "resumed_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
+   "median": 97.567,
+   "min": 97.567,
+   "max": 97.567,
+   "values": [
+    97.567
+   ],
+   "source": "resume-goose-5-20261116-201839",
+   "session_mb": 0.85,
+   "steps": 5,
+   "compactions": 0
+  },
+  {
+   "harness": "goose",
+   "metric": "resumed_after_turn_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
+   "median": 102.433,
+   "min": 102.433,
+   "max": 102.433,
+   "values": [
+    102.433
+   ],
+   "source": "resume-goose-5-20261116-201839",
+   "session_mb": 0.85,
+   "steps": 5,
+   "compactions": 0
+  },
+  {
+   "harness": "goose",
+   "metric": "resumed_idle_300s_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
+   "median": 102.433,
+   "min": 102.433,
+   "max": 102.433,
+   "values": [
+    102.433
+   ],
+   "source": "resume-goose-5-20261116-201839",
+   "session_mb": 0.85,
+   "steps": 5,
+   "compactions": 0
+  },
+  {
+   "harness": "goose",
+   "metric": "resumed_peak_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
+   "median": 102.433,
+   "min": 102.433,
+   "max": 102.433,
+   "values": [
+    102.433
+   ],
+   "source": "resume-goose-5-20261116-201839",
+   "session_mb": 0.85,
+   "steps": 5,
+   "compactions": 0
+  },
+  {
+   "harness": "goose",
+   "metric": "resumed_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
+   "median": 104.9,
+   "min": 104.9,
+   "max": 104.9,
+   "values": [
+    104.9
+   ],
+   "source": "resume-goose-60-20261116-202420",
+   "session_mb": 3.65,
+   "steps": 60,
+   "compactions": 3
+  },
+  {
+   "harness": "goose",
+   "metric": "resumed_after_turn_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
+   "median": 124.433,
+   "min": 124.433,
+   "max": 124.433,
+   "values": [
+    124.433
+   ],
+   "source": "resume-goose-60-20261116-202420",
+   "session_mb": 3.65,
+   "steps": 60,
+   "compactions": 3
+  },
+  {
+   "harness": "goose",
+   "metric": "resumed_idle_300s_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
+   "median": 124.433,
+   "min": 124.433,
+   "max": 124.433,
+   "values": [
+    124.433
+   ],
+   "source": "resume-goose-60-20261116-202420",
+   "session_mb": 3.65,
+   "steps": 60,
+   "compactions": 3
+  },
+  {
+   "harness": "goose",
+   "metric": "resumed_peak_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
+   "median": 124.433,
+   "min": 124.433,
+   "max": 124.433,
+   "values": [
+    124.433
+   ],
+   "source": "resume-goose-60-20261116-202420",
+   "session_mb": 3.65,
+   "steps": 60,
+   "compactions": 3
+  },
+  {
+   "harness": "goose",
+   "metric": "marathon_idle_anon_mib",
+   "n_agents": 1,
+   "runs": 1,
+   "median": 188.9,
+   "min": 188.9,
+   "max": 188.9,
+   "values": [
+    188.9
+   ],
+   "source": "idle-goose-1-hbmarathon-tmux-20261116-200033",
+   "turns": 300,
+   "compaction_requests": 5,
+   "max_request_kb": 892
+  },
+  {
+   "harness": "goose",
+   "metric": "marathon_peak_anon_mib",
+   "n_agents": 1,
+   "runs": 1,
+   "median": 189,
+   "min": 189,
+   "max": 189,
+   "values": [
+    189
+   ],
+   "source": "idle-goose-1-hbmarathon-tmux-20261116-200033",
+   "turns": 300,
+   "compaction_requests": 5,
+   "max_request_kb": 892
+  },
+  {
+   "harness": "goose",
    "metric": "fleet_max_agents_reached",
    "n_agents": 200,
    "runs": 1,
@@ -10142,6 +10300,70 @@
    "metric": "resumed_anon_mib_per_agent",
    "n_agents": 3,
    "runs": 1,
+   "median": 288.367,
+   "min": 288.367,
+   "max": 288.367,
+   "values": [
+    288.367
+   ],
+   "source": "resume-gemini-300-20261116-210911",
+   "session_mb": 41.49,
+   "steps": 300,
+   "compactions": 0
+  },
+  {
+   "harness": "gemini",
+   "metric": "resumed_after_turn_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
+   "median": 399.9,
+   "min": 399.9,
+   "max": 399.9,
+   "values": [
+    399.9
+   ],
+   "source": "resume-gemini-300-20261116-210911",
+   "session_mb": 41.49,
+   "steps": 300,
+   "compactions": 0
+  },
+  {
+   "harness": "gemini",
+   "metric": "resumed_idle_300s_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
+   "median": 329.533,
+   "min": 329.533,
+   "max": 329.533,
+   "values": [
+    329.533
+   ],
+   "source": "resume-gemini-300-20261116-210911",
+   "session_mb": 41.49,
+   "steps": 300,
+   "compactions": 0
+  },
+  {
+   "harness": "gemini",
+   "metric": "resumed_peak_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
+   "median": 501.052,
+   "min": 501.052,
+   "max": 501.052,
+   "values": [
+    501.052
+   ],
+   "source": "resume-gemini-300-20261116-210911",
+   "session_mb": 41.49,
+   "steps": 300,
+   "compactions": 0
+  },
+  {
+   "harness": "gemini",
+   "metric": "resumed_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
    "median": 276.2,
    "min": 276.2,
    "max": 276.2,
@@ -10200,6 +10422,166 @@
    "session_mb": 0.26,
    "steps": 5,
    "compactions": 0
+  },
+  {
+   "harness": "gemini",
+   "metric": "resumed_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
+   "median": 270.567,
+   "min": 270.567,
+   "max": 270.567,
+   "values": [
+    270.567
+   ],
+   "source": "resume-gemini-5-20261116-205725",
+   "session_mb": 0.26,
+   "steps": 5,
+   "compactions": 0
+  },
+  {
+   "harness": "gemini",
+   "metric": "resumed_after_turn_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
+   "median": 367.467,
+   "min": 367.467,
+   "max": 367.467,
+   "values": [
+    367.467
+   ],
+   "source": "resume-gemini-5-20261116-205725",
+   "session_mb": 0.26,
+   "steps": 5,
+   "compactions": 0
+  },
+  {
+   "harness": "gemini",
+   "metric": "resumed_idle_300s_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
+   "median": 334.8,
+   "min": 334.8,
+   "max": 334.8,
+   "values": [
+    334.8
+   ],
+   "source": "resume-gemini-5-20261116-205725",
+   "session_mb": 0.26,
+   "steps": 5,
+   "compactions": 0
+  },
+  {
+   "harness": "gemini",
+   "metric": "resumed_peak_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
+   "median": 367.473,
+   "min": 367.473,
+   "max": 367.473,
+   "values": [
+    367.473
+   ],
+   "source": "resume-gemini-5-20261116-205725",
+   "session_mb": 0.26,
+   "steps": 5,
+   "compactions": 0
+  },
+  {
+   "harness": "gemini",
+   "metric": "resumed_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
+   "median": 280.133,
+   "min": 280.133,
+   "max": 280.133,
+   "values": [
+    280.133
+   ],
+   "source": "resume-gemini-60-20261116-210312",
+   "session_mb": 5.07,
+   "steps": 60,
+   "compactions": 0
+  },
+  {
+   "harness": "gemini",
+   "metric": "resumed_after_turn_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
+   "median": 363.133,
+   "min": 363.133,
+   "max": 363.133,
+   "values": [
+    363.133
+   ],
+   "source": "resume-gemini-60-20261116-210312",
+   "session_mb": 5.07,
+   "steps": 60,
+   "compactions": 0
+  },
+  {
+   "harness": "gemini",
+   "metric": "resumed_idle_300s_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
+   "median": 328.9,
+   "min": 328.9,
+   "max": 328.9,
+   "values": [
+    328.9
+   ],
+   "source": "resume-gemini-60-20261116-210312",
+   "session_mb": 5.07,
+   "steps": 60,
+   "compactions": 0
+  },
+  {
+   "harness": "gemini",
+   "metric": "resumed_peak_anon_mib_per_agent",
+   "n_agents": 3,
+   "runs": 1,
+   "median": 365.221,
+   "min": 365.221,
+   "max": 365.221,
+   "values": [
+    365.221
+   ],
+   "source": "resume-gemini-60-20261116-210312",
+   "session_mb": 5.07,
+   "steps": 60,
+   "compactions": 0
+  },
+  {
+   "harness": "gemini",
+   "metric": "marathon_idle_anon_mib",
+   "n_agents": 1,
+   "runs": 1,
+   "median": 718.1,
+   "min": 718.1,
+   "max": 718.1,
+   "values": [
+    718.1
+   ],
+   "source": "idle-gemini-1-hbmarathon-tmux-20261116-203920",
+   "turns": 300,
+   "compaction_requests": 0,
+   "max_request_kb": 1012
+  },
+  {
+   "harness": "gemini",
+   "metric": "marathon_peak_anon_mib",
+   "n_agents": 1,
+   "runs": 1,
+   "median": 978,
+   "min": 978,
+   "max": 978,
+   "values": [
+    978
+   ],
+   "source": "idle-gemini-1-hbmarathon-tmux-20261116-203920",
+   "turns": 300,
+   "compaction_requests": 0,
+   "max_request_kb": 1012
   },
   {
    "harness": "gemini",

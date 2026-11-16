@@ -16,9 +16,7 @@ RAW = ROOT / "results/raw"
 OUT = ROOT / "results/public/agentrambench.json"
 NAMES = {"claude": "Claude Code", "codex": "Codex CLI", "opencode": "opencode", "pi": "Pi", "crush": "Crush", "goose": "Goose", "gemini": "Gemini CLI"}
 # harness -> one line, while its numbers are partial or about to be replaced; drop the entry once complete
-PROVISIONAL = {"pi": "measured on a system install missing two declared dependencies (pi-telemetry, AWS Bedrock SDK), about 16 MiB less private RAM per process than the npm package; full rerun with the pinned npm package pending",
-               "goose": "partial: marathon and resumed sessions pending (rerun after a mock fix)",
-               "gemini": "partial: marathon and resumed sessions of 60 and 300 steps pending (the mock answered Gemini's loop detector with 'looping', rerun after the fix)"}
+PROVISIONAL = {}
 RAW_ARCHIVE = "https://github.com/agentrambench/bench/releases/download/edition-2026-11/raw-2026-11.tar.zst"
 HNOTES = {"goose": "line-based interactive CLI, not full-screen; its developer tools run in-process (no separate MCP process observed in 1.59.1)",
           "gemini": "Gemini API format (streamGenerateContent); usage statistics left at default (on) and counted as non-model traffic; model router left at default",
@@ -93,6 +91,11 @@ METRICS = {
 }
 
 
+def pinned(x, h):
+    """Only runs of the exact harness version setup.sh installs (drops e.g. pi measured on the incomplete system install)."""
+    return ((x.get("meta") or {}).get("versions") or {}).get(h) == CLI[h].version
+
+
 def newest(prefix, name, h):
     """Per harness: the complete run with the most rows for h (quick-profile runs are smaller); newest on ties."""
     best = (None, None, 0)
@@ -101,7 +104,7 @@ def newest(prefix, name, h):
         if f.exists():
             x = json.loads(f.read_text())
             k = sum(1 for r in x.get("rows", []) if r.get("harness") == h)
-            if x.get("complete") and x.get("meta") and k and k >= best[2]:
+            if x.get("complete") and x.get("meta") and pinned(x, h) and k and k >= best[2]:
                 best = (d, x, k)
     return best[0], best[1]
 
@@ -180,6 +183,8 @@ def main():
             if not p.exists():
                 continue
             x = json.loads(p.read_text())
+            if not pinned(x, h):
+                continue
             if x.get("meta") and x.get("scenario") == "HBLONG" and x["n"] >= 10:
                 ok = x.get("ready_agents") == x["n"] and x.get("alive_end") is not None and not x.get("deaths")
                 ev = x.get("memory_events", {})
@@ -224,6 +229,8 @@ def main():
             if not p.exists():
                 continue
             x = json.loads(p.read_text())
+            if not pinned(x, h):
+                continue
             stopped_at_compaction = x["grow"].get("finished_agents") == 0 and x["grow"].get("compactions", 0) >= x["n"] and not x["grow"].get("capped")
             if not x.get("complete") or x.get("turn_done_agents") != x["n"] or (x["grow"].get("finished_agents") != x["n"] and not stopped_at_compaction):
                 continue
@@ -240,6 +247,8 @@ def main():
             if not p.exists():
                 continue
             x = json.loads(p.read_text())
+            if not pinned(x, h):
+                continue
             if not x.get("meta") or "at_hold_end" not in x:
                 continue
             recs = [json.loads(l) for l in open(d / "mock/requests.jsonl") if '"tag"' in l]
