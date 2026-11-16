@@ -120,6 +120,7 @@ def entry(h, metric, vals, n, src):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--final", action="store_true", help="mark the edition final (publishable); default preliminary")
+    ap.add_argument("--bench-commit", help="public runner commit to record (its runner files must equal this tree's)")
     args = ap.parse_args()
     res, sources, versions = [], {}, {}
     by_h = {}
@@ -288,7 +289,8 @@ def main():
         "edition": EDITION,
         "frozen": time.strftime("%Y-%m-%d"),
         "generated": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
-        "bench_commit": git("rev-parse", "--short", "HEAD"),
+        "bench_commit": args.bench_commit or git("rev-parse", "--short", "HEAD"),
+        **({"bench_private_commit": git("rev-parse", "--short", "HEAD")} if args.bench_commit else {}),
         "llm": "local deterministic mock (Anthropic Messages / OpenAI Responses / Gemini generateContent); no real model",
         "machine": {"cpu": cpu, "cores": os.cpu_count(), "ram_gib": round(mem, 1), "kernel": platform.release(), "label": "dev desktop"},
         "sources": sources,
