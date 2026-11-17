@@ -94,7 +94,7 @@ def idle(out):
         if not f.exists():
             continue
         x = json.loads(f.read_text())
-        if not x.get("meta") or "at_hold_end" not in x or x.get("ready_agents") != x["n"] or x["n"] < 10:
+        if not x.get("meta") or "at_hold_end" not in x or x.get("ready_agents") != x["n"] or x["n"] < 10 or not x.get("hold_s"):
             continue
         mode = x.get("mode_label", "TUI")
         groups.setdefault((x["harness"], x["n"], x.get("scenario"), mode), []).append(x)

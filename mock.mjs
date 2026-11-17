@@ -32,15 +32,21 @@ const SCRIPTS = {
 		["printf 'THREE-%s\\n' DONE", "THREE-DONE"],
 	],
 	HBIDLE: [["printf 'IDLE-%s\\n' READY", "IDLE-READY"]],
+	// graded-fault task: each step reads 16 KB and appends one line to sidefx.log, so re-executed steps show up as duplicate side effects
+	HBFX: [1, 2, 3, 4].map((k) => [`cat big_0${k}.txt >/dev/null; printf 'FX-%s\\n' ${k} | tee -a sidefx.log; cat big_0${k}.txt`, `FX-${k}`]),
 	HBSTREAM: [["printf 'ONE-%s\\n' DONE", "ONE-DONE"]],
 	HBLONG: Array.from({ length: 20 }, (_, i) => { const k = String(i + 1).padStart(2, "0"); return [`printf 'BIG-%s-END\\n' ${k}; cat big_${k}.txt`, `BIG-${k}-END`]; }),
 };
 // Count-driven scripts: step i is issued when the conversation holds i tool outputs (no marker needed); HBLOOP never ends its turn.
 const SEQ = {
 	HBHANG: ["python3 -c 'input()'", "python3 -c 'import time; time.sleep(100000)'"],
+	HBFLOOD: ["head -c 500000000 /dev/zero | tr '\\0' a"],
 	HBHUGE: ["head -c 50000000 /dev/zero | tr '\\0' a", "head -c 7500000 /dev/urandom | base64 -w0", "head -c 2000000 /dev/urandom"],
 	HBLOOP: [],
 	HBBURST: ["cat big_01.txt", "cat big_02.txt", "cat big_03.txt"],
+	// heavy work turn for the burst phase: 12 reads of 16 KB, a 20 KB report written through the shell, re-read, word count, then a streamed markdown answer
+	HBWORK: [...Array.from({ length: 12 }, (_, i) => `cat big_${String(i + 1).padStart(2, "0")}.txt`),
+		"cat big_01.txt big_02.txt | head -c 20000 > report.md && wc -c report.md", "cat report.md", "wc -w big_*.txt report.md"],
 	HBGROW: [],
 	HBMARATHON: Array.from({ length: 300 }, (_, i) => `cat big_${String((i % 20) + 1).padStart(2, "0")}.txt; echo STEP-${i}`),
 };
@@ -48,9 +54,43 @@ const REPORT_MD = ["# File review", "", "Read all twenty files. Summary:", "",
 	...Array.from({ length: 20 }, (_, i) => `- **big_${String(i + 1).padStart(2, "0")}.txt**: maritime word list, ~16 KB, ends with marker \`BIG-${String(i + 1).padStart(2, "0")}-END\`.`),
 	"", "## Counts", "", "| file | lines | bytes |", "|---|---|---|", ...Array.from({ length: 20 }, (_, i) => `| big_${String(i + 1).padStart(2, "0")}.txt | 190 | 16000 |`),
 	"", "## Sample", "", "```python", "from pathlib import Path", "for f in sorted(Path('.').glob('big_*.txt')):", "    print(f.name, len(f.read_text().split()))", "```", ""].join("\n");
-const FINAL = { HBTASK: "Fixed: add() now returns a + b and the tests pass.", HBSLOW: "All three steps done.", HBIDLE: "Ready.", HBLONG: REPORT_MD, HBHANG: "Hang steps done.", HBBURST: REPORT_MD, HBGROW: REPORT_MD, HBMARATHON: REPORT_MD, HBHUGE: "Huge outputs done.", HBSTREAM: "STREAM-BEGIN " + "the harness keeps streaming this long benchmark answer while the fault happens ".repeat(150) + "STREAM-END" };
+const FINAL = { HBFX: "All four steps done.", HBTASK: "Fixed: add() now returns a + b and the tests pass.", HBSLOW: "All three steps done.", HBIDLE: "Ready.", HBLONG: REPORT_MD, HBHANG: "Hang steps done.", HBBURST: REPORT_MD, HBWORK: REPORT_MD, HBGROW: REPORT_MD, HBMARATHON: REPORT_MD, HBHUGE: "Huge outputs done.", HBFLOOD: "Flood done.", HBSTREAM: "STREAM-BEGIN " + "the harness keeps streaming this long benchmark answer while the fault happens ".repeat(150) + "STREAM-END" };
 
+const PROMPT_HINT = { HBFX: "run the four benchmark steps in order", HBTASK: "fix calc.py so the tests pass" };
 const MIDSTREAM = new Set(["truncate", "stall", "trickle", "sse_error", "malformed"]);
+// Model-level faults: applied only to a tool-call reply (the count is consumed only then). n/a cells are flagged in the request log.
+const MODEL_FAULTS = new Set(["truncate_tool", "max_tokens_tool", "bad_tool_call", "unknown_tool", "dup_events", "reorder"]);
+const isDelta = (api, e) => api === "anthropic" ? e[0] === "content_block_delta" : api === "responses" ? /\.delta$/.test(e.type) : api === "chat" ? !!(e.choices?.[0]?.delta?.tool_calls?.[0]?.function?.arguments || e.choices?.[0]?.delta?.content) : true;
+function planFault(p, kind, api) {
+	if (kind === "unknown_tool") return { ...p, name: "hb_unknown_tool", args: { query: "status" }, input: p.input };
+	if (kind !== "bad_tool_call") return p;
+	if (p.kind === "custom") return { ...p, input: "const r = await tools.exec_command({cmd: ;" };
+	if (api === "gemini") return { ...p, args: {} };
+	return { ...p, rawArgs: JSON.stringify(p.args).slice(0, -1) + ',"x":}' };
+}
+// returns [events, cutAt|null, na]
+function mutate(ev, api, kind) {
+	const d = ev.map((e, i) => (isDelta(api, e) ? i : -1)).filter((i) => i >= 0 && !(api === "gemini" && false));
+	if (kind === "dup_events") return [ev.flatMap((e, i) => (d.includes(i) ? [e, e] : [e])), null, false];
+	if (kind === "reorder") {
+		if (api !== "anthropic" && api !== "responses") return [ev, null, true];
+		const out = [...ev], [x] = out.splice(d[0], 1);
+		out.splice(1, 0, x);
+		return [out, null, false];
+	}
+	if (kind === "truncate_tool") {
+		if (api === "gemini") return [ev, 0, true];
+		return [ev, d[Math.min(d.length - 1, Math.max(1, Math.floor(d.length / 2)))], false];
+	}
+	if (kind === "max_tokens_tool") {
+		const half = d[Math.max(0, Math.floor(d.length / 2))];
+		if (api === "anthropic") return [[...ev.slice(0, half), ["content_block_stop", { type: "content_block_stop", index: 0 }], ["message_delta", { type: "message_delta", delta: { stop_reason: "max_tokens", stop_sequence: null }, usage: { output_tokens: 8 } }], ["message_stop", { type: "message_stop" }]], null, false];
+		if (api === "responses") return [[...ev.slice(0, half), { type: "response.incomplete", response: { id: ev[0].response.id, object: "response", status: "incomplete", incomplete_details: { reason: "max_output_tokens" }, model: ev[0].response.model, output: [] } }], null, false];
+		if (api === "chat") return [[...ev.slice(0, half), { ...ev.at(-1), choices: [{ index: 0, delta: {}, finish_reason: "length" }] }], null, false];
+		return [[{ ...ev[0], candidates: [{ content: { role: "model", parts: [] }, index: 0, finishReason: "MAX_TOKENS" }] }], null, false];
+	}
+	return [ev, null, false];
+}
 const prefixSeen = new Map();
 function cachedPrefix(tag, raw) {
 	let set = prefixSeen.get(tag);
@@ -198,6 +238,14 @@ function plan(view) {
 		const who = ctx.match(/\[a\d{3}\]/)?.[0] ?? "";
 		return { kind: "text", text: `Summary: the user asked ${which} (read files step by step). STEPS-DONE=${steps}. Continue with the next step. ${who}`, compaction: true };
 	}
+	const scSum = asksSummary ? scenario(ctx) : null;
+	if (scSum === "HBFX") {
+		// marker-script tasks (HBFX overflow): the summary carries the task keyword and the markers already reached, so the next step is not re-run
+		const everything = ctx + "\n" + view.outputs.join("\n");
+		const done = SCRIPTS[scSum].map(([, mk]) => mk).filter((mk) => everything.includes(mk));
+		const who = ctx.match(/\[a\d{3}\]/)?.[0] ?? "";
+		return { kind: "text", text: `Summary: the user asked ${scSum}: ${PROMPT_HINT[scSum] ?? "run the benchmark steps in order"}. MARKERS-DONE=${done.join(",")}. Continue with the next step. ${who}`, compaction: true };
+	}
 	if (!view.tools.length) return { kind: "text", text: "Benchmark task" };
 	if (/\btitle\b/i.test(last.slice(0, 200))) return { kind: "text", text: "Benchmark task" };
 	const sc = scenario(usersAll);
@@ -213,7 +261,7 @@ function plan(view) {
 		if (!tool) return { kind: "text", text: "NO-SHELL-TOOL", scenario: sc };
 		return { kind: "tool", name: tool.name, args: shellArgs(tool, cmd), scenario: sc, step: `seq${i}` };
 	}
-	const all = view.outputs.join("\n");
+	const all = view.outputs.join("\n") + "\n" + [...usersAll.matchAll(/MARKERS-DONE=(\S*)/g)].map((m) => m[1].replaceAll(",", "\n")).join("\n");
 	if (view.outputs.length > SCRIPTS[sc].length * 3 + 5) return { kind: "text", text: "GAVE-UP: step markers never seen", scenario: sc, gaveUp: true };
 	const step = SCRIPTS[sc].find(([, marker]) => !all.includes(marker));
 	if (!step) return { kind: "text", text: FINAL[sc], scenario: sc };
@@ -245,6 +293,7 @@ async function pace(res, outTokens, events, write, ttft, usage = {}) {
 	let i = 0;
 	for (const e of events) {
 		if (res.destroyed) return false;
+		if (usage.cutAt != null && i === usage.cutAt) { res.socket?.destroy(); return false; }
 		if (usage.fault && i === MIDSTREAM_AFTER) {
 			const f = usage.fault;
 			if (f === "truncate") { res.socket?.destroy(); return false; }
@@ -263,7 +312,7 @@ async function pace(res, outTokens, events, write, ttft, usage = {}) {
 async function anthropic(req, res, b, p, usage) {
 	const msgId = id("msg_");
 	const block = p.kind === "tool" ? { type: "tool_use", id: id("toolu_"), name: p.name, input: {} } : { type: "text", text: "" };
-	const body = p.kind === "tool" ? JSON.stringify(p.args) : p.text;
+	const body = p.kind === "tool" ? p.rawArgs ?? JSON.stringify(p.args) : p.text;
 	const stop = p.kind === "tool" ? "tool_use" : "end_turn";
 	const u = { input_tokens: usage.input - usage.cached, output_tokens: usage.output, cache_creation_input_tokens: 0, cache_read_input_tokens: usage.cached };
 	if (!b.stream) {
@@ -276,11 +325,11 @@ async function anthropic(req, res, b, p, usage) {
 	const ev = [];
 	ev.push(["message_start", { type: "message_start", message: { id: msgId, type: "message", role: "assistant", model: b.model, content: [], stop_reason: null, stop_sequence: null, usage: { ...u, output_tokens: 1 } } }]);
 	ev.push(["content_block_start", { type: "content_block_start", index: 0, content_block: block }]);
-	for (const c of chunks(body)) ev.push(["content_block_delta", { type: "content_block_delta", index: 0, delta: p.kind === "tool" ? { type: "input_json_delta", partial_json: c } : { type: "text_delta", text: c } }]);
+	for (const c of chunks(body, p.kind === "tool" ? 8 : 12)) ev.push(["content_block_delta", { type: "content_block_delta", index: 0, delta: p.kind === "tool" ? { type: "input_json_delta", partial_json: c } : { type: "text_delta", text: c } }]);
 	ev.push(["content_block_stop", { type: "content_block_stop", index: 0 }]);
 	ev.push(["message_delta", { type: "message_delta", delta: { stop_reason: stop, stop_sequence: null }, usage: { output_tokens: usage.output } }]);
 	ev.push(["message_stop", { type: "message_stop" }]);
-	if (await pace(res, usage.output, ev, ([t, d]) => res.write(`event: ${t}\ndata: ${JSON.stringify(d)}\n\n`), usage.ttft, usage)) res.end();
+	if (await pace(res, usage.output, applyModelFault(ev, usage), ([t, d]) => res.write(`event: ${t}\ndata: ${JSON.stringify(d)}\n\n`), usage.ttft, usage)) res.end();
 }
 
 async function responses(req, res, b, p, usage) {
@@ -294,11 +343,11 @@ async function responses(req, res, b, p, usage) {
 		for (const c of chunks(p.input, 24)) ev.push({ type: "response.custom_tool_call_input.delta", output_index: 0, item_id: item.id, delta: c });
 		ev.push({ type: "response.custom_tool_call_input.done", output_index: 0, item_id: item.id, input: p.input });
 	} else if (p.kind === "tool") {
-		const args = JSON.stringify(p.args);
+		const args = p.rawArgs ?? JSON.stringify(p.args);
 		const callId = id("call_");
 		item = { type: "function_call", id: id("fc_"), call_id: callId, name: p.name, arguments: args, status: "completed" };
 		ev.push({ type: "response.output_item.added", output_index: 0, item: { ...item, arguments: "", status: "in_progress" } });
-		for (const c of chunks(args)) ev.push({ type: "response.function_call_arguments.delta", output_index: 0, item_id: item.id, delta: c });
+		for (const c of chunks(args, 8)) ev.push({ type: "response.function_call_arguments.delta", output_index: 0, item_id: item.id, delta: c });
 		ev.push({ type: "response.function_call_arguments.done", output_index: 0, item_id: item.id, arguments: args });
 	} else {
 		item = { type: "message", id: id("msg_"), role: "assistant", status: "completed", content: [{ type: "output_text", text: p.text, annotations: [] }] };
@@ -316,7 +365,7 @@ async function responses(req, res, b, p, usage) {
 		return res.end(JSON.stringify(ev.at(-1).response));
 	}
 	res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
-	if (await pace(res, usage.output, ev, (e) => res.write(`event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`), usage.ttft, usage)) res.end();
+	if (await pace(res, usage.output, applyModelFault(ev, usage), (e) => res.write(`event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`), usage.ttft, usage)) res.end();
 }
 
 async function chat(req, res, b, p, usage) {
@@ -333,7 +382,7 @@ async function chat(req, res, b, p, usage) {
 	res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
 	const ev = [];
 	if (p.kind === "tool") {
-		const args = JSON.stringify(p.args);
+		const args = p.rawArgs ?? JSON.stringify(p.args);
 		ev.push({ ...base, choices: [{ index: 0, delta: { role: "assistant", tool_calls: [{ index: 0, id: callId, type: "function", function: { name: p.name, arguments: "" } }] }, finish_reason: null }] });
 		for (const c of chunks(args)) ev.push({ ...base, choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: c } }] }, finish_reason: null }] });
 		ev.push({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }], usage: u });
@@ -342,7 +391,7 @@ async function chat(req, res, b, p, usage) {
 		for (const c of chunks(p.text)) ev.push({ ...base, choices: [{ index: 0, delta: { content: c }, finish_reason: null }] });
 		ev.push({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: u });
 	}
-	if (await pace(res, usage.output, ev, (e) => res.write(`data: ${JSON.stringify(e)}\n\n`), usage.ttft, usage)) res.end("data: [DONE]\n\n");
+	if (await pace(res, usage.output, applyModelFault(ev, usage), (e) => res.write(`data: ${JSON.stringify(e)}\n\n`), usage.ttft, usage)) res.end("data: [DONE]\n\n");
 }
 
 async function gemini(req, res, b, p, usage, model, stream) {
@@ -362,7 +411,14 @@ async function gemini(req, res, b, p, usage, model, stream) {
 		return res.end(JSON.stringify({ ...cand(parts, true), usageMetadata: um, ...base }));
 	}
 	res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
-	if (await pace(res, usage.output, ev, (e) => res.write(`data: ${JSON.stringify(e)}\n\n`), usage.ttft, usage)) res.end();
+	if (await pace(res, usage.output, applyModelFault(ev, usage), (e) => res.write(`data: ${JSON.stringify(e)}\n\n`), usage.ttft, usage)) res.end();
+}
+
+function applyModelFault(ev, usage) {
+	if (!usage.modelFault) return ev;
+	const [out, cut, na] = mutate(ev, usage.api, usage.modelFault);
+	usage.cutAt = cut;
+	return out;
 }
 
 function models(res, path) {
@@ -383,7 +439,8 @@ const server = http.createServer(async (req, res) => {
 	if (path === "/ctl" && req.method === "POST") {
 		const c = JSON.parse(raw || "{}");
 		if (c.kind === "quota") { quotas.set(c.tag, { rpm: Number(c.rpm), retryAfter: c.retry_after !== false, times: [] }); res.writeHead(200); return res.end("{}"); }
-		if (c.kind) faults.set(c.tag, { kind: String(c.kind), after: Number(c.after ?? 0), count: c.count == null ? Infinity : Number(c.count), window: c.window_s == null ? Infinity : Number(c.window_s) * 1000, seen: 0, start: null });
+		if (c.kind) faults.set(c.tag, { kind: String(c.kind), after: Number(c.after ?? 0), count: c.count == null ? Infinity : Number(c.count), window: c.window_s == null ? Infinity : Number(c.window_s) * 1000, seen: 0, start: null,
+			retryAfter: c.retry_after, seq: c.seq ? c.seq.map(String) : null, period: Number(c.period_s ?? 20) * 1000, down: Number(c.down_s ?? 5) * 1000, threshold: null });
 		else { faults.delete(c.tag); quotas.delete(c.tag); }
 		res.writeHead(200, { "content-type": "application/json" });
 		return res.end(JSON.stringify({ ok: true }));
@@ -435,35 +492,70 @@ const server = http.createServer(async (req, res) => {
 		q.times.push(now);
 	}
 	const f = faults.get(tag);
-	let midFault = null, midWindow = null;
-	if (f && f.seen++ >= f.after && f.count > 0 && (f.start == null || Date.now() - f.start < f.window)) {
+	let midFault = null, midWindow = null, modelFault = null;
+	const fail = (kind) => {
+		appendFileSync(log, JSON.stringify(rec) + "\n");
+		if (kind === "reset") return req.socket.destroy();
+		if (kind === "hang") return setTimeout(() => req.socket.destroy(), Math.max(0, f.start + f.window - Date.now()));
+		if (kind === "html200") { res.writeHead(200, { "content-type": "text/html" }); return res.end("<html><head><title>502 Bad Gateway</title></head><body><center><h1>502 Bad Gateway</h1></center><hr><center>nginx</center></body></html>\n"); }
+		if (kind === "empty200") { res.writeHead(200, { "content-type": rec.stream === false ? "application/json" : "text/event-stream" }); return res.end(); }
+		if (kind === "overflow") {
+			res.writeHead(400, { "content-type": "application/json" });
+			return res.end(JSON.stringify(api === "anthropic" ? { type: "error", error: { type: "invalid_request_error", message: `prompt is too long: ${rec.est_input * 4} tokens > ${Math.floor(f.threshold / 4)} maximum` } }
+				: api === "gemini" ? { error: { code: 400, message: `The input token count (${rec.est_input}) exceeds the maximum number of tokens allowed (${Math.floor(f.threshold / 4)}).`, status: "INVALID_ARGUMENT" } }
+				: { error: { message: `This model's maximum context length is ${Math.floor(f.threshold / 4)} tokens. However, your messages resulted in ${rec.est_input} tokens.`, type: "invalid_request_error", code: "context_length_exceeded" } }));
+		}
+		const status = api === "gemini" && kind === "529" ? 503 : Number(kind);
+		const anth = { 429: ["rate_limit_error", "injected 429"], 401: ["authentication_error", "invalid x-api-key"], 500: ["api_error", "injected 500"], 529: ["overloaded_error", "Overloaded"], 503: ["overloaded_error", "The model is overloaded"], 413: ["request_too_large", "Request exceeds the maximum allowed number of bytes"] }[status];
+		const oai = { 429: "rate_limit_exceeded", 401: "invalid_api_key", 500: "server_error", 529: "server_error", 503: "server_error", 413: "request_too_large" }[status];
+		const ra = f.retryAfter === false ? null : f.retryAfter != null ? String(f.retryAfter) : status === 429 ? "2" : null;
+		res.writeHead(status, { "content-type": "application/json", ...(ra ? { "retry-after": ra } : {}) });
+		const gem = { 429: "RESOURCE_EXHAUSTED", 401: "UNAUTHENTICATED", 500: "INTERNAL", 503: "UNAVAILABLE", 413: "INVALID_ARGUMENT" }[status];
+		return res.end(JSON.stringify(api === "anthropic" ? { type: "error", error: { type: anth[0], message: anth[1] } } : api === "gemini" ? { error: { code: status, message: anth[1], status: gem } } : { error: { type: oai, code: oai, message: anth[1] } }));
+	};
+	if (f && f.kind === "flap") {
+		if (f.seen++ >= f.after) {
+			f.start ??= Date.now();
+			const dt = Date.now() - f.start;
+			if (dt < f.window && dt % f.period < f.down) { rec.injected = "flap"; return fail("reset"); }
+		}
+	} else if (f && f.kind === "overflow") {
+		if (f.seen++ >= f.after) {
+			f.threshold ??= Math.floor(raw.length * 0.7);
+			if (raw.length > f.threshold) { rec.injected = "overflow"; return fail("overflow"); }
+		}
+	} else if (f && MODEL_FAULTS.has(f.kind)) {
+		if (f.seen >= f.after && f.count > 0) modelFault = f.kind;
+		f.seen++;
+	} else if (f && f.seen++ >= f.after && f.count > 0 && (f.start == null || Date.now() - f.start < f.window)) {
 		f.start ??= Date.now();
 		f.count--;
-		rec.injected = f.kind;
-		if (MIDSTREAM.has(f.kind)) {
-			midFault = f.kind;
+		const kind = f.seq ? f.seq.shift() : f.kind;
+		if (f.seq && !f.seq.length) f.count = 0;
+		rec.injected = kind;
+		if (MIDSTREAM.has(kind)) {
+			midFault = kind;
 			midWindow = f.window === Infinity ? 120000 : f.window;
-		} else {
-			appendFileSync(log, JSON.stringify(rec) + "\n");
-			if (f.kind === "reset") return req.socket.destroy();
-			if (f.kind === "hang") return setTimeout(() => req.socket.destroy(), Math.max(0, f.start + f.window - Date.now()));
-			const status = api === "gemini" && f.kind === "529" ? 503 : Number(f.kind);
-			const anth = { 429: ["rate_limit_error", "injected 429"], 401: ["authentication_error", "invalid x-api-key"], 500: ["api_error", "injected 500"], 529: ["overloaded_error", "Overloaded"], 503: ["overloaded_error", "The model is overloaded"] }[status];
-			const oai = { 429: "rate_limit_exceeded", 401: "invalid_api_key", 500: "server_error", 529: "server_error" }[status];
-			res.writeHead(status, { "content-type": "application/json", ...(status === 429 ? { "retry-after": "2" } : {}) });
-			const gem = { 429: "RESOURCE_EXHAUSTED", 401: "UNAUTHENTICATED", 500: "INTERNAL", 503: "UNAVAILABLE" }[status];
-			return res.end(JSON.stringify(api === "anthropic" ? { type: "error", error: { type: anth[0], message: anth[1] } } : api === "gemini" ? { error: { code: status, message: anth[1], status: gem } } : { error: { type: oai, code: oai, message: anth[1] } }));
-		}
+		} else return fail(kind);
 	}
 	const gc = b.generationConfig ?? b.generation_config;
 	const schema = api === "gemini" && gc?.responseMimeType === "application/json" ? (gc.responseJsonSchema ?? gc.responseSchema ?? {}) : null;
 	view.system = sys;
-	const p = schema ? { kind: "text", text: JSON.stringify(fillSchema(schema)), side: "json" } : plan(view);
+	let p = schema ? { kind: "text", text: JSON.stringify(fillSchema(schema)), side: "json" } : plan(view);
+	if (modelFault && (p.kind === "tool" || p.kind === "custom")) {
+		f.count--;
+		rec.injected = modelFault;
+		// gemini: each chunk carries whole parts, so a duplicated chunk is a valid second call, not a protocol duplicate
+		if ((modelFault === "reorder" && api !== "anthropic" && api !== "responses") || ((modelFault === "truncate_tool" || modelFault === "dup_events") && api === "gemini")) rec.fault_na = true;
+		p = planFault(p, modelFault, api);
+	} else modelFault = null;
 	const out = p.kind === "tool" ? JSON.stringify(p.args) : p.kind === "custom" ? p.input : p.text;
 	const cached = Math.floor(cachedPrefix(tag, raw) / 4);
 	const usage = { input: rec.est_input, cached, output: Math.max(1, estTokens(out)) };
 	rec.est_cached = cached;
 	usage.fault = midFault;
+	usage.modelFault = modelFault;
+	usage.rec = rec;
 	usage.faultWindow = midWindow;
 	usage.api = api;
 	usage.ttft = ttftBase + ttftPerKtok * Math.max(0, rec.est_input - cached) / 1000;

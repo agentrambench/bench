@@ -42,7 +42,9 @@ PROMPTS = {"HBTASK": "HBTASK: test_calc.py fails. Fix calc.py so the tests pass.
            "HBSTREAM": "HBSTREAM: run the step, then write the long answer.",
            "HBHANG": "HBHANG: run the two benchmark commands.",
            "HBHUGE": "HBHUGE: run the three output commands.",
-           "HBLOOP": "HBLOOP: keep checking until done."}
+           "HBLOOP": "HBLOOP: keep checking until done.",
+           "HBFX": "HBFX: run the four benchmark steps in order.",
+           "HBFLOOD": "HBFLOOD: run the output command."}
 
 
 # ---------- measurement ----------
@@ -106,15 +108,17 @@ def role(pid):
         return "terminal"
     if e.startswith(HARNESS_EXE) or "/node_modules/" in e:
         return "harness"
+    if e.startswith(str(WORK)) and "/ws" not in e:  # binaries a harness unpacked into its run HOME (codex helper)
+        return "harness"
     return "tool"
 
 
 class Sampler(threading.Thread):
     """Polls a cgroup (recursive): sum of Pss/Rss/SwapPss over its processes + memory.current/anon. Keeps maxima and a sparse series."""
 
-    def __init__(self, cg, period=0.25, keep_every=1.0, exclude=()):
+    def __init__(self, cg, period=0.25, keep_every=1.0, exclude=(), cg_only=False):
         super().__init__(daemon=True)
-        self.cg, self.period, self.keep_every, self.exclude = Path(cg), period, keep_every, set(exclude)
+        self.cg, self.period, self.keep_every, self.exclude, self.cg_only = Path(cg), period, keep_every, set(exclude), cg_only
         self.max = {}
         self.series = []
         self.last = {}
@@ -124,7 +128,7 @@ class Sampler(threading.Thread):
         tot = {"Pss": 0, "Rss": 0, "SwapPss": 0, "Pss_Anon": 0, "nproc": 0}
         for r in ROLES:
             tot.update({f"Pss_{r}": 0, f"Pss_Anon_{r}": 0, f"SwapPss_{r}": 0, f"n_{r}": 0})
-        for pid in cg_pids(self.cg):
+        for pid in ([] if self.cg_only else cg_pids(self.cg)):
             if pid in self.exclude:
                 continue
             m = smaps(pid)
@@ -139,6 +143,8 @@ class Sampler(threading.Thread):
         s = cg_stat(self.cg)
         tot.update(cg_current=s.get("memory.current", 0), cg_anon=s.get("anon", 0), cg_file=s.get("file", 0),
                    cg_swap=s.get("memory.swap.current", 0), cpu_usec=s.get("usage_usec", 0), t=time.time())
+        if self.cg_only:
+            tot["nproc"] = 1
         return tot
 
     def run(self):
@@ -200,7 +206,8 @@ class NetCensus(threading.Thread):
 
     def stop(self):
         self.stop_ev.set()
-        self.join(10)
+        if self.is_alive():
+            self.join(10)
 
     def totals(self):
         return {"sent": sum(v["sent"] for v in self.socks.values()), "received": sum(v["received"] for v in self.socks.values()), "connections": len(self.socks)}
@@ -315,7 +322,7 @@ class Mock:
 
 
 def finals(recs, scenario):
-    return [r for r in recs if r.get("reply") == "text" and r.get("scenario") == scenario]
+    return [r for r in recs if r.get("reply") == "text" and r.get("scenario") == scenario and not r.get("gave_up")]
 
 
 def token_summary(recs):
@@ -353,7 +360,17 @@ def shuffled(names, run):
 
 
 def runid(prefix):
-    return f"{prefix}-{time.strftime('%Y%m%d-%H%M%S')}"
+    """Creates RESULTS/<prefix>-<timestamp>[-k]: parallel runs started in the same second get separate dirs (names stay short: tmux socket paths)."""
+    ts = time.strftime('%Y%m%d-%H%M%S')
+    RESULTS.mkdir(parents=True, exist_ok=True)
+    for k in range(100):
+        name = f"{prefix}-{ts}" + (f"-{k}" if k else "")
+        try:
+            (RESULTS / name).mkdir()
+            return name
+        except FileExistsError:
+            continue
+    raise RuntimeError("runid: no free name")
 
 
 def save(out, name, data):
@@ -506,6 +523,7 @@ def cmd_task(a):
 #   scope  SIGKILL everything in the harness scope, tools included (OOM kill / reboot analogue).
 #   term   the harness's terminal dies: TUI in a private tmux, tmux server killed (server-style plugins: their attached client runs in that tmux).
 #   stream kill9 while the final answer is streaming (no tool running).
+#   sigterm graceful shutdown mid-turn: SIGTERM to the kill9 victims, up to 10 s to exit, then SIGKILL; resume shows whether the turn was saved.
 # Then: CLIs = one-shot resume ("continue"), i.e. user action; server-style plugins restart their server on the same state, no user input.
 
 HARNESS_EXE = (str(ROOT / "harnesses"), "/usr/bin/node", str(ROOT / "bin"))
@@ -535,6 +553,13 @@ def tool_pid(cg, timeout=15):
                 return pid
         time.sleep(0.05)
     return None
+
+
+def read_text(path):
+    try:
+        return open(path).read()
+    except OSError:
+        return ""
 
 
 def kill_all(pids, sig=signal.SIGKILL):
@@ -599,6 +624,17 @@ def crash_cli(h, mock, run, mode):
     elif mode == "scope":
         r["killed"] = "whole scope"
         subprocess.run(["systemctl", "--user", "kill", "-s", "KILL", f"{unit}.scope"])
+    elif mode == "sigterm":
+        victims = harness_procs(cg, [str(home)])
+        r["killed"] = [cmdline(x)[:60] for x in victims]
+        kill_all(victims, signal.SIGTERM)
+        alive = lambda x: (lambda st: bool(st) and st.rsplit(")", 1)[-1].split()[0] != "Z")(read_text(f"/proc/{x}/stat"))
+        while time.time() - t_kill < 10 and any(alive(x) for x in victims):
+            time.sleep(0.1)
+        left = [x for x in victims if alive(x)]
+        r["exited_on_sigterm"] = not left
+        r["sigterm_exit_s"] = None if left else round(time.time() - t_kill, 2)
+        kill_all(left)
     else:
         victims = harness_procs(cg, [str(home)])
         r["killed"] = [cmdline(x)[:60] for x in victims]
@@ -687,6 +723,52 @@ FAULTS = {
     "tool-hang": {"scenario": "HBHANG", "timeout": 420}, "tool-huge": {"scenario": "HBHUGE", "timeout": 300},
     "loop-3min": {"scenario": "HBLOOP", "timeout": 180},
 }
+# edition 2026-12: harder faults on the HBFX task (4 steps, each appends one line to sidefx.log), graded (fault_grade)
+FX = {"scenario": "HBFX"}
+FAULTS.update({
+    "503-5min": {**FX, "kind": 503, "after": 1, "window_s": 300, "timeout": 600},
+    "503-15min": {**FX, "kind": 503, "after": 1, "window_s": 900, "timeout": 1200},
+    "529-5min": {**FX, "kind": 529, "after": 1, "window_s": 300, "timeout": 600},
+    "429-5min-noRA": {**FX, "kind": 429, "after": 1, "window_s": 300, "retry_after": False, "timeout": 600},
+    "429-RA3600": {**FX, "kind": 429, "after": 1, "count": 1, "retry_after": 3600, "timeout": 600},
+    "auth-5min": {**FX, "kind": 401, "after": 1, "window_s": 300, "timeout": 600},
+    "stall-5min": {**FX, "kind": "hang", "after": 1, "window_s": 300, "timeout": 600},
+    "flap-3min": {**FX, "kind": "flap", "after": 1, "window_s": 180, "period_s": 20, "down_s": 5, "timeout": 480},
+    "compound": {**FX, "kind": "seq", "seq": ["429", "reset", "truncate"], "after": 1, "count": 3, "timeout": 300},
+    "html200": {**FX, "kind": "html200", "after": 1, "count": 3, "timeout": 300},
+    "empty200": {**FX, "kind": "empty200", "after": 1, "count": 3, "timeout": 300},
+    "413": {**FX, "kind": 413, "after": 1, "count": 1, "timeout": 300},
+    "overflow": {**FX, "kind": "overflow", "after": 3, "timeout": 400},
+    "truncate-tool": {**FX, "kind": "truncate_tool", "after": 1, "count": 1, "timeout": 300},
+    "max-tokens-tool": {**FX, "kind": "max_tokens_tool", "after": 1, "count": 1, "timeout": 300},
+    "bad-tool-call": {**FX, "kind": "bad_tool_call", "after": 1, "count": 1, "timeout": 300},
+    "unknown-tool": {**FX, "kind": "unknown_tool", "after": 1, "count": 1, "timeout": 300},
+    "dup-events": {**FX, "kind": "dup_events", "after": 1, "count": 1, "timeout": 300},
+    "reorder": {**FX, "kind": "reorder", "after": 1, "count": 1, "timeout": 300},
+    "tool-flood": {"scenario": "HBFLOOD", "timeout": 300},
+    # disk full (ENOSPC, needs HB_ENOSPC_DIR): tool = workspace on the full filesystem, the steps' appends fail (success = turn finished);
+    # session = HOME (harness config, sessions, logs) on it, workspace elsewhere (success = all four steps)
+    "enospc-tool": {**FX, "enospc": "tool", "timeout": 300},
+    "enospc-session": {**FX, "enospc": "session", "timeout": 300},
+})
+# 2026-12: the twelve 2026-11 provider faults also run on HBFX and are graded (one graded set; their 2026-11 HBTASK rows are not carried)
+for _k in ["429x3", "429-60s", "529x3", "500x3", "401-60s", "reset-30s", "hang-30s", "truncate", "stall-60s", "trickle", "sse-error", "malformed"]:
+    FAULTS[_k] = {**FX, **FAULTS[_k], "timeout": 300}
+FAULTS_2026_11 = ["429x3", "429-60s", "529x3", "500x3", "401-60s", "reset-30s", "hang-30s", "truncate", "stall-60s", "trickle", "sse-error", "malformed", "tool-hang", "tool-huge", "loop-3min"]
+FAULTS_2026_12 = list(FAULTS)  # graded run of edition 2026-12: basic + hard
+FAULTS_NOT_IN_TOTALS = ["429-RA3600", "loop-3min"]
+
+
+def fault_grade(done_alone, continues, dup, wasted):
+    """1.0 alone, 0.6 after one "continue", 0.3 after two, else 0; -0.2 if a side effect ran twice; -0.1 per 10 wasted requests; floor 0."""
+    base = 1.0 if done_alone else {1: 0.6, 2: 0.3}.get(continues, 0.0)
+    return round(max(0.0, base - (0.2 if dup else 0) - 0.1 * (wasted // 10)), 2)
+
+
+def sidefx(ws):
+    f = ws / "sidefx.log"
+    lines = [l.strip() for l in f.read_text().splitlines() if l.strip()] if f.exists() else []
+    return {"lines": len(lines), "steps": sorted(set(lines)), "duplicates": len(lines) - len(set(lines))}
 
 
 def ctl(mock, body):
@@ -720,15 +802,66 @@ def tests_pass(ws):
     return "return a + b" in (ws / "calc.py").read_text() and subprocess.run(["python3", "test_calc.py"], cwd=ws, capture_output=True).returncode == 0
 
 
+ENOSPC_DIR = Path(os.environ.get("HB_ENOSPC_DIR", Path.home() / ".cache/harness-bench/enospc"))
+
+
 def fault_cli(h, mock, run, prof):
-    spec = dict(FAULTS[prof])
+    where = FAULTS[prof].get("enospc")
+    if not where:
+        return _fault_cli(h, mock, run, prof)
+    # needs a small dedicated filesystem (setup: 64 MB ext4 loop, -m 0, owned by the user, mounted at HB_ENOSPC_DIR); one run at a time
+    if not os.path.ismount(ENOSPC_DIR):
+        return {"harness": h.name, "run": run, "fault": prof, "error": f"{ENOSPC_DIR} is not a mounted small filesystem"}
+    WORK.mkdir(parents=True, exist_ok=True)
+    with open(WORK / "enospc.lock", "w") as lk:
+        fcntl.flock(lk, fcntl.LOCK_EX)
+        clear = lambda: [shutil.rmtree(x) if x.is_dir() else x.unlink() for x in ENOSPC_DIR.iterdir() if x.name != "lost+found"]
+        clear()
+        try:
+            return _fault_cli(h, mock, run, prof, small=ENOSPC_DIR, where=where)
+        finally:
+            clear()
+
+
+def fill(fs):
+    """Ballast files until the filesystem is full, so the next real write fails with ENOSPC."""
+    v = os.statvfs(fs)
+    fd = os.open(fs / "ballast", os.O_CREAT | os.O_WRONLY)
+    try:
+        os.posix_fallocate(fd, 0, max(4096, v.f_bavail * v.f_frsize - 65536))
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
+    with open(fs / "ballast2", "wb", buffering=0) as f:
+        try:
+            while True:
+                f.write(b"\0" * 1024)
+        except OSError:
+            pass
+    v = os.statvfs(fs)
+    return v.f_bavail * v.f_frsize
+
+
+def _fault_cli(h, mock, run, prof, small=None, where=None):
+    spec = {k: v for k, v in FAULTS[prof].items() if k != "enospc"}
     sc, tmo = spec.pop("scenario", "HBTASK"), spec.pop("timeout", 240)
     tag = f"{h.name}-fault-{prof}-{run}"
     base = WORK / tag
     if base.exists():
         shutil.rmtree(base)
-    ws = workspace(base / "ws")
-    home = warm_home(h, base, mock, tag, ws)
+    ws = workspace((small if where == "tool" else base) / "ws")
+    if sc == "HBFX":
+        for f in (ROOT / "fixtures/long").glob("big_0[1-4].txt"):
+            shutil.copy2(f, ws / f.name)
+    hbase = small / tag if where == "session" else base
+    hbase.mkdir(parents=True, exist_ok=True)
+    base.mkdir(parents=True, exist_ok=True)
+    try:
+        home = warm_home(h, hbase, mock, tag, ws)
+    except OSError as e:
+        return {"harness": h.name, "run": run, "fault": prof, "error": f"warm-up on the small filesystem failed: {e}"}
+    free_left = fill(small) if small else None
     if spec:
         ctl(mock, {"tag": tag, **spec})
     unit = f"hb-{tag}-{os.getpid()}"
@@ -746,10 +879,20 @@ def fault_cli(h, mock, run, prof):
     smp.stop()
     st_ = read_stat(base / "cg.stat")
     out_tail = (base / "stdout").read_text(errors="replace")[-300:]
+    if where == "tool":
+        fx_done = lambda: bool(finals(mock.records(tag), "HBFX"))
+    elif sc == "HBFX":
+        fx_done = lambda: bool(finals(mock.records(tag), "HBFX")) and sidefx(ws)["steps"] == [f"FX-{k}" for k in (1, 2, 3, 4)]
+    elif sc == "HBLOOP":  # success = the harness ends the runaway turn itself before the timeout; no continues
+        fx_done = lambda: rc != "timeout"
+    else:
+        fx_done = lambda: bool(finals(mock.records(tag), sc))
     r = {"harness": h.name, "run": run, "fault": prof, "scenario": sc, "rc": rc, "wall_s": round(time.time() - t0, 1),
-         "success_without_user": tests_pass(ws) if sc == "HBTASK" else None, "stdout_tail": out_tail,
+         "success_without_user": tests_pass(ws) if sc == "HBTASK" else fx_done(), "stdout_tail": out_tail,
          "max_anon_mib": round(smp.max.get("cg_anon", 0) / 2**20), "cg_memory_peak_mib": round(st_.get("memory_peak", 0) / 2**20), "cpu_s": round(st_.get("usage_usec", 0) / 1e6, 1),
          "leftover_procs": st_.get("leftover_procs"), **fault_facts(mock.records(tag), t0, sc)}
+    if small:
+        r.update(enospc=where, enospc_free_bytes=free_left, enospc_in_output=bool(re.search(r"no space left|ENOSPC", (base / "stdout").read_text(errors="replace"), re.I)))
     ctl(mock, {"tag": tag})
     if sc == "HBTASK" and not r["success_without_user"]:
         n0 = len(mock.records(tag))
@@ -758,6 +901,18 @@ def fault_cli(h, mock, run, prof):
         first = next((x for x in after if x.get("api") in ("anthropic", "responses", "chat", "gemini") and not x.get("side")), {})
         r.update(resume_rc=p2.returncode, success_after_resume=tests_pass(ws), resume_prompt_recovered=first.get("scenario") == "HBTASK",
                  n_tool_results_in_resume_request=first.get("n_outputs"))
+    if sc != "HBTASK":
+        cont = 0
+        while not fx_done() and cont < 2 and sc != "HBLOOP":
+            cont += 1
+            subprocess.run(["timeout", "240", *h.resume("continue")], cwd=ws, env=h.env(home), stdin=subprocess.DEVNULL, capture_output=True, text=True)
+        fx = sidefx(ws)
+        recs = [x for x in mock.records(tag) if x.get("api") in ("anthropic", "responses", "chat", "gemini") and not x.get("side")]
+        wasted = max(0, sum(1 for x in recs if x.get("injected")) - 10)
+        done = fx_done()
+        r.update(continues_used=cont if done else None, done_after_continues=done, sidefx=fx, wasted_requests=wasted,
+                 fault_na=any(x.get("fault_na") for x in recs),
+                 grade=fault_grade(r["success_without_user"], cont if done else 99, fx["duplicates"] > 0, wasted))
     return r
 
 
@@ -1015,11 +1170,19 @@ def shlex_quote(x):
     return shlex.quote(x)
 
 
-def burst_phase(a, name, tmux, masters, drv, mock, tag, sampler, t0):
-    """All N agents get the same 3-step work turn (3 x 16 KB tool output + streamed markdown report) at once: CPU-s and per-agent turn time."""
+BURST_SC = "HBWORK"
+
+
+def burst_phase(a, name, tmux, masters, drv, mock, tag, sampler, t0, alive):
+    """All N agents get the same 15-step work turn at once (12 x 16 KB reads, a 20 KB report written and re-read, streamed markdown answer):
+    CPU-s, per-agent turn time, cgroup memory every 0.25 s and per-role PSS every 0.5 s while they work (peak) and after a 60 s settle."""
     n_before = len(mock.records(tag))
     cpu0 = sampler.sample()["cpu_usec"]
-    text = lambda i: f"HBBURST: cat three files then report. [a{i:03d}]"
+    text = lambda i: f"{BURST_SC}: read twelve files, write a report, then summarise. [a{i:03d}]"
+    bs = Sampler(sampler.cg, period=0.5, keep_every=0.5)
+    fast = Sampler(sampler.cg, period=0.25, keep_every=3600, cg_only=True)
+    bs.start()
+    fast.start()
     t_b = time.time()
     if drv:
         for i in range(a.n):
@@ -1027,7 +1190,7 @@ def burst_phase(a, name, tmux, masters, drv, mock, tag, sampler, t0):
     elif tmux:
         for i in range(a.n):
             tmux.tm("send-keys", "-t", f"hb:a{i:03d}", "-l", text(i), check=False)
-        time.sleep(0.3)
+        time.sleep(1)
         t_b = time.time()
         for i in range(a.n):
             tmux.tm("send-keys", "-t", f"hb:a{i:03d}", "Enter", check=False)
@@ -1035,12 +1198,24 @@ def burst_phase(a, name, tmux, masters, drv, mock, tag, sampler, t0):
         for i, m in masters.items():
             type_text(m, text(int(i[1:]) if isinstance(i, str) else i))
     t_sent = time.time()
-    while time.time() - t_b < a.ready_timeout and len({r.get("agent") for r in finals(mock.records(tag)[n_before:], "HBBURST")}) < a.n:
+    # an agent is done when its final answer has finished streaming (t_end), not when the request arrived
+    done = lambda: {r["agent"] for r in finals(mock.records(tag)[n_before:], BURST_SC) if r.get("agent") and r.get("t_end")}
+    enter_resent = []
+    while time.time() - t_b < a.ready_timeout and len(done()) < a.n and alive() >= a.n:
+        if tmux and not enter_resent and time.time() - t_sent > 5:  # Enter taken as a newline (codex paste-burst): press it again for agents that sent nothing
+            started = {r.get("agent") for r in mock.records(tag)[n_before:] if r.get("agent")}
+            enter_resent = [i for i in range(a.n) if f"a{i:03d}" not in started] or [-1]
+            for i in enter_resent:
+                if i >= 0:
+                    tmux.tm("send-keys", "-t", f"hb:a{i:03d}", "Enter", check=False)
         time.sleep(0.25)
+    time.sleep(2)  # render tail of the last streamed answer
+    t_done = time.time()
     recs = mock.records(tag)[n_before:]
     fin = {}
-    for r in finals(recs, "HBBURST"):
-        fin.setdefault(r.get("agent"), r["t"])
+    for r in finals(recs, BURST_SC):
+        if r.get("agent") and r.get("t_end"):
+            fin.setdefault(r["agent"], r["t_end"])
     first = {}
     for r in recs:
         if r.get("api") in ("anthropic", "responses", "chat", "gemini") and r.get("agent"):
@@ -1048,9 +1223,17 @@ def burst_phase(a, name, tmux, masters, drv, mock, tag, sampler, t0):
     times = sorted(fin[k] - t_b for k in fin)
     cpu1 = sampler.sample()["cpu_usec"]
     q = lambda p: round(times[min(len(times) - 1, int(p * len(times)))], 2) if times else None
-    time.sleep(5)
-    return {"agents_done": len(fin), "send_spread_s": round(t_sent - t_b, 2), "turn_s_p50": q(0.5), "turn_s_p90": q(0.9), "turn_s_max": round(times[-1], 2) if times else None,
+    peak = dict(bs.max, t=t_done)
+    fast.stop()
+    peak_cg_anon = max(fast.max.get("cg_anon", 0), bs.max.get("cg_anon", 0))
+    time.sleep(max(0, (max(fin.values()) if fin else t_done) + 60 - time.time()))
+    after = dict(bs.last)
+    bs.stop()
+    return {"scenario": BURST_SC, "agents_done": len(fin), "peak": idle_series_row(peak, t0) if peak.get("t") and "Pss" in peak else None, "peak_cg_anon_mib_fast": round(peak_cg_anon / 2**20, 1), "after_60s": idle_series_row(after, t0) if after.get("t") else None,
+            "series": [idle_series_row(x, t0) for x in bs.series if x["t"] <= t_done + 60], "send_spread_s": round(t_sent - t_b, 2), "turn_s_p50": q(0.5), "turn_s_p90": q(0.9), "turn_s_max": round(times[-1], 2) if times else None,
             "first_request_s_p50": round(sorted(first[k] - t_b for k in first)[len(first) // 2], 2) if first else None,
+            "first_request_s_max": round(max(first[k] - t_b for k in first), 2) if first else None, "agents_started": len(first),
+            "enter_resent": [i for i in enter_resent if i >= 0],
             "cpu_s": round((cpu1 - cpu0) / 1e6, 2), "cpu_s_per_agent": round((cpu1 - cpu0) / 1e6 / a.n, 3),
             "requests": sum(1 for r in recs if r.get("api") in ("anthropic", "responses", "chat", "gemini")), "after": idle_series_row(sampler.last, t0)}
 
@@ -1070,21 +1253,29 @@ def cmd_idle(a):
         for ws in wss:
             for f in (ROOT / "fixtures/long").iterdir():
                 shutil.copy2(f, ws / f.name)
-    mock = Mock(out / "mock", a.port, a.ttft, a.tps, bodies=False, ttft_per_ktok=a.ttft_per_ktok)
     res = {"harness": name, "n": a.n, "hold_s": a.hold, "scenario": sc, "terminal": a.terminal, "host_before": host_info()}
     sl = f"batch-hbidle{name}{os.getpid()}.slice"
     cg = slice_cg(sl)
-    subprocess.run(["systemctl", "--user", "set-property", "--runtime", sl, f"MemoryMax={a.mem_max}", "MemorySwapMax=0"], check=True)
+    mock = Mock(out / "mock", a.port, a.ttft, a.tps, bodies=False, ttft_per_ktok=a.ttft_per_ktok)
+    try:
+        subprocess.run(["systemctl", "--user", "set-property", "--runtime", sl, f"MemoryMax={a.mem_max}", "MemorySwapMax=0"], check=True)
+    except Exception:
+        mock.stop()
+        raise
     res["slice_limits"] = {"MemoryMax": a.mem_max, "MemorySwapMax": 0}
     res["meta"] = meta()
-    if cg_pids(cg):
-        sys.exit(f"refuse: slice {sl} already has processes")
     ptys = tmux = None
-    if a.terminal == "tmux":
-        tmux = Tmux(base, sl, a.mem_max)
-    else:
-        ptys = Ptys()
-        ptys.start()
+    try:
+        if cg_pids(cg):
+            sys.exit(f"refuse: slice {sl} already has processes")
+        if a.terminal == "tmux":
+            tmux = Tmux(base, sl, a.mem_max)
+        else:
+            ptys = Ptys()
+            ptys.start()
+    except BaseException:
+        mock.stop()
+        raise
     procs, masters = [], {}
     t0 = time.time()
     sampler = net = drv = None
@@ -1123,7 +1314,7 @@ def cmd_idle(a):
                 launch(f"a{i:03d}", ws, h.env(home), h.tui(f"{PROMPTS[sc]} [a{i:03d}]"), f"hb-idle-{name}-{i:03d}-{os.getpid()}", prompt=f"{PROMPTS[sc]} [a{i:03d}]")
                 time.sleep(a.stagger)
         t_launched = time.time()
-        while time.time() - t_launched < a.ready_timeout and len({r.get("agent") for r in finals(mock.records(tag), sc)}) < a.n:
+        while time.time() - t_launched < a.ready_timeout and len({r.get("agent") for r in finals(mock.records(tag), sc)}) < a.n and alive() >= a.n:
             time.sleep(1)
         fin = finals(mock.records(tag), sc)
         res["ready_agents"] = len({r.get("agent") for r in fin if r.get("agent")})
@@ -1132,6 +1323,8 @@ def cmd_idle(a):
         res["launch_s"] = round(t_launched - t0, 1)
         if len(fin) < a.n:
             res["not_ready_screens"] = debug_screens(tmux, ptys, name, 3)
+            if a.hold == 0:  # burst-only fleet that never got ready (OOM, crash): stop now, idle.json still written
+                raise RuntimeError(f"fleet not ready: {res['ready_agents']}/{a.n}, alive {alive()}")
         res["after_work"] = idle_series_row(sampler.last, t0)
         time.sleep(a.settle)
         t_hold = time.time()
@@ -1168,7 +1361,9 @@ def cmd_idle(a):
         res["alive_end"] = alive()
         n_before = len(mock.records(tag))
         t_wake = time.time()
-        if drv:
+        if a.hold == 0:  # burst-only fleet: no wake-up re-prompt
+            pass
+        elif drv:
             for i in range(a.n):
                 drv.prompt(i, f"HBIDLE again [a{i:03d}]")
         elif tmux:
@@ -1177,7 +1372,7 @@ def cmd_idle(a):
         else:
             for i, m in masters.items():
                 type_text(m, f"HBIDLE again [{i}]")
-        while time.time() - t_wake < a.ready_timeout and len({r.get("agent") for r in finals(mock.records(tag)[n_before:], "HBIDLE")}) < a.n:
+        while a.hold and time.time() - t_wake < a.ready_timeout and len({r.get("agent") for r in finals(mock.records(tag)[n_before:], "HBIDLE")}) < a.n and alive() >= a.n:
             time.sleep(0.5)
         fin2 = finals(mock.records(tag)[n_before:], "HBIDLE")
         res["reprompt_answered"] = len({r.get("agent") for r in fin2 if r.get("agent")})
@@ -1187,11 +1382,11 @@ def cmd_idle(a):
         time.sleep(5)
         res["after_reprompt"] = idle_series_row(sampler.last, t0)
         if a.burst:
-            res["burst"] = burst_phase(a, name, tmux, masters, drv, mock, tag, sampler, t0)
+            res["burst"] = burst_phase(a, name, tmux, masters, drv, mock, tag, sampler, t0, alive)
         res["max"] = dict(sampler.max)
         res["series"] = [idle_series_row(x, t0) for x in sampler.series]
         res["tokens"] = token_summary(mock.records(tag))
-        if len(fin2) < a.n:
+        if a.hold and len(fin2) < a.n:
             res["reprompt_screens"] = debug_screens(tmux, ptys, name, 2)
         wsd = tuple(f"/{d}/" for d in getattr(CLI.get(name), "ws_session_dirs", ()))
         res["disk_state_mib"] = round(sum(f.stat().st_size for f in base.rglob("*") if f.is_file() and not f.is_symlink() and ("/ws" not in str(f) or any(d in str(f) for d in wsd))) / 2**20, 1)
@@ -1374,7 +1569,7 @@ def main():
         if n == "fault":
             p.add_argument("--profile", nargs="+", default=list(FAULTS))
         if n == "crash":
-            p.add_argument("--mode", nargs="+", default=["kill9", "scope", "term", "stream"])
+            p.add_argument("--mode", nargs="+", default=["kill9", "scope", "term", "stream", "sigterm"])
         if n == "idle":
             p.add_argument("--n", type=int, default=50)
             p.add_argument("--hold", type=int, default=3600)
