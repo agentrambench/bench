@@ -726,14 +726,14 @@ FAULTS = {
 # edition 2026-12: harder faults on the HBFX task (4 steps, each appends one line to sidefx.log), graded (fault_grade)
 FX = {"scenario": "HBFX"}
 FAULTS.update({
-    "503-5min": {**FX, "kind": 503, "after": 1, "window_s": 300, "timeout": 600},
-    "503-15min": {**FX, "kind": 503, "after": 1, "window_s": 900, "timeout": 1200},
-    "529-5min": {**FX, "kind": 529, "after": 1, "window_s": 300, "timeout": 600},
-    "429-5min-noRA": {**FX, "kind": 429, "after": 1, "window_s": 300, "retry_after": False, "timeout": 600},
+    "503-5min": {**FX, "kind": 503, "after": 1, "window_s": 300, "timeout": 720},
+    "503-15min": {**FX, "kind": 503, "after": 1, "window_s": 900, "timeout": 1920},
+    "529-5min": {**FX, "kind": 529, "after": 1, "window_s": 300, "timeout": 720},
+    "429-5min-noRA": {**FX, "kind": 429, "after": 1, "window_s": 300, "retry_after": False, "timeout": 720},
     "429-RA3600": {**FX, "kind": 429, "after": 1, "count": 1, "retry_after": 3600, "timeout": 600},
-    "auth-5min": {**FX, "kind": 401, "after": 1, "window_s": 300, "timeout": 600},
-    "stall-5min": {**FX, "kind": "hang", "after": 1, "window_s": 300, "timeout": 600},
-    "flap-3min": {**FX, "kind": "flap", "after": 1, "window_s": 180, "period_s": 20, "down_s": 5, "timeout": 480},
+    "auth-5min": {**FX, "kind": 401, "after": 1, "window_s": 300, "timeout": 720},
+    "stall-5min": {**FX, "kind": "hang", "after": 1, "window_s": 330, "timeout": 780},
+    "flap-3min": {**FX, "kind": "flap", "after": 1, "window_s": 180, "timeout": 480},
     "compound": {**FX, "kind": "seq", "seq": ["429", "reset", "truncate"], "after": 1, "count": 3, "timeout": 300},
     "html200": {**FX, "kind": "html200", "after": 1, "count": 3, "timeout": 300},
     "empty200": {**FX, "kind": "empty200", "after": 1, "count": 3, "timeout": 300},
@@ -882,7 +882,7 @@ def _fault_cli(h, mock, run, prof, small=None, where=None):
     if where == "tool":
         fx_done = lambda: bool(finals(mock.records(tag), "HBFX"))
     elif sc == "HBFX":
-        fx_done = lambda: bool(finals(mock.records(tag), "HBFX")) and sidefx(ws)["steps"] == [f"FX-{k}" for k in (1, 2, 3, 4)]
+        fx_done = lambda: bool(finals(mock.records(tag), "HBFX")) and {f"FX-{k}" for k in (1, 2, 3, 4)} <= set(sidefx(ws)["steps"])
     elif sc == "HBLOOP":  # success = the harness ends the runaway turn itself before the timeout; no continues
         fx_done = lambda: rc != "timeout"
     else:
@@ -893,7 +893,8 @@ def _fault_cli(h, mock, run, prof, small=None, where=None):
          "leftover_procs": st_.get("leftover_procs"), **fault_facts(mock.records(tag), t0, sc)}
     if small:
         r.update(enospc=where, enospc_free_bytes=free_left, enospc_in_output=bool(re.search(r"no space left|ENOSPC", (base / "stdout").read_text(errors="replace"), re.I)))
-    ctl(mock, {"tag": tag})
+    if sc == "HBTASK":
+        ctl(mock, {"tag": tag})
     if sc == "HBTASK" and not r["success_without_user"]:
         n0 = len(mock.records(tag))
         p2 = subprocess.run(["timeout", "240", *h.resume("continue")], cwd=ws, env=h.env(home), stdin=subprocess.DEVNULL, capture_output=True, text=True)
@@ -902,13 +903,34 @@ def _fault_cli(h, mock, run, prof, small=None, where=None):
         r.update(resume_rc=p2.returncode, success_after_resume=tests_pass(ws), resume_prompt_recovered=first.get("scenario") == "HBTASK",
                  n_tool_results_in_resume_request=first.get("n_outputs"))
     if sc != "HBTASK":
+        recs = [x for x in mock.records(tag) if x.get("api") in ("anthropic", "responses", "chat", "gemini") and not x.get("side")]
+        inj = [x for x in recs if x.get("injected")]
+        win = FAULTS[prof].get("window_s")
+        # fault end: window profiles = first injected request + window; counted = end of the last injected response
+        fault_end = (inj[0]["t"] + win) if inj and win else max((x.get("t_end") or x["t"]) for x in inj) if inj else None
+        ok_after = [x for x in recs if inj and not x.get("injected") and x["n"] > inj[-1]["n"] and x.get("scenario") == sc and x.get("t_end")]
+        r["recovery_s"] = round(max(0.0, ok_after[0]["t_end"] - fault_end), 1) if ok_after and fault_end else None
+        # allowance: counted faults = count; windows = one request per step of a 1, 2, 4 ... 60 s backoff over the fault span, plus the first
+        if inj and win:
+            span, k, t, step = fault_end - inj[0]["t"], 1, 0.0, 1.0
+            while t + step <= span:
+                t, k, step = t + step, k + 1, min(60.0, step * 2)
+            allow = k
+        else:
+            allow = FAULTS[prof].get("count") or (1 if inj else 0)  # overflow: the first rejection is unavoidable
+        wasted = max(0, len(inj) - allow)
+        r.update(fault_end_s=round(fault_end - t0, 1) if fault_end else None, wasted_allowance=allow)
+        if win and inj:  # the user presses "continue" once the outage is over, as in real use; overflow stays armed during the continues
+            time.sleep(max(0.0, fault_end - time.time()))
+        if FAULTS[prof].get("kind") != "overflow":
+            ctl(mock, {"tag": tag})
         cont = 0
         while not fx_done() and cont < 2 and sc != "HBLOOP":
             cont += 1
             subprocess.run(["timeout", "240", *h.resume("continue")], cwd=ws, env=h.env(home), stdin=subprocess.DEVNULL, capture_output=True, text=True)
+        ctl(mock, {"tag": tag})
         fx = sidefx(ws)
         recs = [x for x in mock.records(tag) if x.get("api") in ("anthropic", "responses", "chat", "gemini") and not x.get("side")]
-        wasted = max(0, sum(1 for x in recs if x.get("injected")) - 10)
         done = fx_done()
         r.update(continues_used=cont if done else None, done_after_continues=done, sidefx=fx, wasted_requests=wasted,
                  fault_na=any(x.get("fault_na") for x in recs),

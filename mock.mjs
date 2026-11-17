@@ -33,7 +33,7 @@ const SCRIPTS = {
 	],
 	HBIDLE: [["printf 'IDLE-%s\\n' READY", "IDLE-READY"]],
 	// graded-fault task: each step reads 16 KB and appends one line to sidefx.log, so re-executed steps show up as duplicate side effects
-	HBFX: [1, 2, 3, 4].map((k) => [`cat big_0${k}.txt >/dev/null; printf 'FX-%s\\n' ${k} | tee -a sidefx.log; cat big_0${k}.txt`, `FX-${k}`]),
+	HBFX: [1, 2, 3, 4].map((k) => [`printf 'FX-%s\\n' ${k} | tee -a sidefx.log; cat big_0${k}.txt`, `FX-${k}`]),
 	HBSTREAM: [["printf 'ONE-%s\\n' DONE", "ONE-DONE"]],
 	HBLONG: Array.from({ length: 20 }, (_, i) => { const k = String(i + 1).padStart(2, "0"); return [`printf 'BIG-%s-END\\n' ${k}; cat big_${k}.txt`, `BIG-${k}-END`]; }),
 };
@@ -71,7 +71,8 @@ function planFault(p, kind, api) {
 // returns [events, cutAt|null, na]
 function mutate(ev, api, kind) {
 	const d = ev.map((e, i) => (isDelta(api, e) ? i : -1)).filter((i) => i >= 0 && !(api === "gemini" && false));
-	if (kind === "dup_events") return [ev.flatMap((e, i) => (d.includes(i) ? [e, e] : [e])), null, false];
+	// responses: the item added/done events are doubled too (same ids), so a harness can dedupe by item id
+	if (kind === "dup_events") return [ev.flatMap((e, i) => (d.includes(i) || (api === "responses" && /^response\.output_item\.(added|done)$/.test(e.type)) ? [e, e] : [e])), null, false];
 	if (kind === "reorder") {
 		if (api !== "anthropic" && api !== "responses") return [ev, null, true];
 		const out = [...ev], [x] = out.splice(d[0], 1);
@@ -80,10 +81,10 @@ function mutate(ev, api, kind) {
 	}
 	if (kind === "truncate_tool") {
 		if (api === "gemini") return [ev, 0, true];
-		return [ev, d[Math.min(d.length - 1, Math.max(1, Math.floor(d.length / 2)))], false];
+		return [ev, d[Math.min(d.length - 1, Math.max(1, Math.floor(d.length * 0.75)))], false];  // past the side effect (tee), so executing the partial call shows up as a duplicate
 	}
 	if (kind === "max_tokens_tool") {
-		const half = d[Math.max(0, Math.floor(d.length / 2))];
+		const half = d[Math.max(0, Math.floor(d.length * 0.75))];
 		if (api === "anthropic") return [[...ev.slice(0, half), ["content_block_stop", { type: "content_block_stop", index: 0 }], ["message_delta", { type: "message_delta", delta: { stop_reason: "max_tokens", stop_sequence: null }, usage: { output_tokens: 8 } }], ["message_stop", { type: "message_stop" }]], null, false];
 		if (api === "responses") return [[...ev.slice(0, half), { type: "response.incomplete", response: { id: ev[0].response.id, object: "response", status: "incomplete", incomplete_details: { reason: "max_output_tokens" }, model: ev[0].response.model, output: [] } }], null, false];
 		if (api === "chat") return [[...ev.slice(0, half), { ...ev.at(-1), choices: [{ index: 0, delta: {}, finish_reason: "length" }] }], null, false];
@@ -294,7 +295,7 @@ async function pace(res, outTokens, events, write, ttft, usage = {}) {
 	for (const e of events) {
 		if (res.destroyed) return false;
 		if (usage.cutAt != null && i === usage.cutAt) { res.socket?.destroy(); return false; }
-		if (usage.fault && i === MIDSTREAM_AFTER) {
+		if (usage.fault && i === Math.min(MIDSTREAM_AFTER, events.length - 1)) {
 			const f = usage.fault;
 			if (f === "truncate") { res.socket?.destroy(); return false; }
 			if (f === "stall") { await sleep(usage.faultWindow ?? 120000); res.socket?.destroy(); return false; }
@@ -303,7 +304,7 @@ async function pace(res, outTokens, events, write, ttft, usage = {}) {
 		}
 		write(e);
 		i++;
-		if (usage.fault === "trickle" && i >= MIDSTREAM_AFTER) await sleep(5000);
+		if (usage.fault === "trickle" && i >= Math.min(MIDSTREAM_AFTER, events.length - 1)) await sleep(5000);
 		else if (gap) await sleep(gap);
 	}
 	return true;
@@ -399,6 +400,8 @@ async function gemini(req, res, b, p, usage, model, stream) {
 	const base = { modelVersion: model, responseId: id("") };
 	const cand = (parts, finish) => ({ candidates: [{ content: { role: "model", parts }, index: 0, ...(finish ? { finishReason: "STOP" } : {}) }] });
 	const ev = [];
+	// a mid-stream fault needs an event boundary before the call: lead with a short text chunk (gemini sends whole parts per chunk)
+	if (p.kind === "tool" && usage.fault) ev.push({ ...cand([{ text: "Running the next step." }], false), ...base });
 	if (p.kind === "tool") ev.push({ ...cand([{ functionCall: { name: p.name, args: p.args } }], true), usageMetadata: um, ...base });
 	else {
 		const cs = chunks(p.text, 48);
@@ -491,64 +494,86 @@ const server = http.createServer(async (req, res) => {
 		}
 		q.times.push(now);
 	}
-	const f = faults.get(tag);
-	let midFault = null, midWindow = null, modelFault = null;
-	const fail = (kind) => {
-		appendFileSync(log, JSON.stringify(rec) + "\n");
-		if (kind === "reset") return req.socket.destroy();
-		if (kind === "hang") return setTimeout(() => req.socket.destroy(), Math.max(0, f.start + f.window - Date.now()));
-		if (kind === "html200") { res.writeHead(200, { "content-type": "text/html" }); return res.end("<html><head><title>502 Bad Gateway</title></head><body><center><h1>502 Bad Gateway</h1></center><hr><center>nginx</center></body></html>\n"); }
-		if (kind === "empty200") { res.writeHead(200, { "content-type": rec.stream === false ? "application/json" : "text/event-stream" }); return res.end(); }
-		if (kind === "overflow") {
-			res.writeHead(400, { "content-type": "application/json" });
-			return res.end(JSON.stringify(api === "anthropic" ? { type: "error", error: { type: "invalid_request_error", message: `prompt is too long: ${rec.est_input * 4} tokens > ${Math.floor(f.threshold / 4)} maximum` } }
-				: api === "gemini" ? { error: { code: 400, message: `The input token count (${rec.est_input}) exceeds the maximum number of tokens allowed (${Math.floor(f.threshold / 4)}).`, status: "INVALID_ARGUMENT" } }
-				: { error: { message: `This model's maximum context length is ${Math.floor(f.threshold / 4)} tokens. However, your messages resulted in ${rec.est_input} tokens.`, type: "invalid_request_error", code: "context_length_exceeded" } }));
-		}
-		const status = api === "gemini" && kind === "529" ? 503 : Number(kind);
-		const anth = { 429: ["rate_limit_error", "injected 429"], 401: ["authentication_error", "invalid x-api-key"], 500: ["api_error", "injected 500"], 529: ["overloaded_error", "Overloaded"], 503: ["overloaded_error", "The model is overloaded"], 413: ["request_too_large", "Request exceeds the maximum allowed number of bytes"] }[status];
-		const oai = { 429: "rate_limit_exceeded", 401: "invalid_api_key", 500: "server_error", 529: "server_error", 503: "server_error", 413: "request_too_large" }[status];
-		const ra = f.retryAfter === false ? null : f.retryAfter != null ? String(f.retryAfter) : status === 429 ? "2" : null;
-		res.writeHead(status, { "content-type": "application/json", ...(ra ? { "retry-after": ra } : {}) });
-		const gem = { 429: "RESOURCE_EXHAUSTED", 401: "UNAUTHENTICATED", 500: "INTERNAL", 503: "UNAVAILABLE", 413: "INVALID_ARGUMENT" }[status];
-		return res.end(JSON.stringify(api === "anthropic" ? { type: "error", error: { type: anth[0], message: anth[1] } } : api === "gemini" ? { error: { code: status, message: anth[1], status: gem } } : { error: { type: oai, code: oai, message: anth[1] } }));
-	};
-	if (f && f.kind === "flap") {
-		if (f.seen++ >= f.after) {
-			f.start ??= Date.now();
-			const dt = Date.now() - f.start;
-			if (dt < f.window && dt % f.period < f.down) { rec.injected = "flap"; return fail("reset"); }
-		}
-	} else if (f && f.kind === "overflow") {
-		if (f.seen++ >= f.after) {
-			f.threshold ??= Math.floor(raw.length * 0.7);
-			if (raw.length > f.threshold) { rec.injected = "overflow"; return fail("overflow"); }
-		}
-	} else if (f && MODEL_FAULTS.has(f.kind)) {
-		if (f.seen >= f.after && f.count > 0) modelFault = f.kind;
-		f.seen++;
-	} else if (f && f.seen++ >= f.after && f.count > 0 && (f.start == null || Date.now() - f.start < f.window)) {
-		f.start ??= Date.now();
-		f.count--;
-		const kind = f.seq ? f.seq.shift() : f.kind;
-		if (f.seq && !f.seq.length) f.count = 0;
-		rec.injected = kind;
-		if (MIDSTREAM.has(kind)) {
-			midFault = kind;
-			midWindow = f.window === Infinity ? 120000 : f.window;
-		} else return fail(kind);
-	}
 	const gc = b.generationConfig ?? b.generation_config;
 	const schema = api === "gemini" && gc?.responseMimeType === "application/json" ? (gc.responseJsonSchema ?? gc.responseSchema ?? {}) : null;
 	view.system = sys;
 	let p = schema ? { kind: "text", text: JSON.stringify(fillSchema(schema)), side: "json" } : plan(view);
-	if (modelFault && (p.kind === "tool" || p.kind === "custom")) {
+	// main = a turn request of the task (tools offered, not a JSON side call, not a title); only main requests advance fault counters
+	const isMain = view.tools.length > 0 && !schema && !/\btitle\b/i.test((view.users.at(-1) ?? "").slice(0, 200));
+	if (!isMain) rec.side = rec.side ?? (schema ? "json" : "aux");
+	const f = faults.get(tag);
+	let midFault = null, midWindow = null, modelFault = null;
+	const fail = (kind) => {
+		appendFileSync(log, JSON.stringify(rec) + "\n");
+		res.on("close", () => appendFileSync(log, JSON.stringify({ n, t_end: Date.now() / 1000 }) + "\n"));
+		if (kind === "reset") return req.socket.destroy();
+		if (kind === "hang") return setTimeout(() => req.socket.destroy(), Math.max(0, f.start + f.window - Date.now()));
+		if (kind === "html200") { res.writeHead(200, { "content-type": "text/html" }); return res.end("<html><head><title>502 Bad Gateway</title></head><body><center><h1>502 Bad Gateway</h1></center><hr><center>nginx</center></body></html>\n"); }
+		if (kind === "empty200") { res.writeHead(200, { "content-type": rec.stream ? "text/event-stream" : "application/json" }); return res.end(); }
+		if (kind === "overflow") {
+			const lim = Math.floor(f.threshold / 4);
+			res.writeHead(400, { "content-type": "application/json", ...(api === "anthropic" ? { "request-id": id("req_") } : {}) });
+			return res.end(JSON.stringify(api === "anthropic" ? { type: "error", error: { type: "invalid_request_error", message: `prompt is too long: ${rec.est_input} tokens > ${lim} maximum` }, request_id: id("req_") }
+				: api === "gemini" ? { error: { code: 400, message: `The input token count (${rec.est_input}) exceeds the maximum number of tokens allowed (${lim}).`, status: "INVALID_ARGUMENT" } }
+				: { error: { message: `This model's maximum context length is ${lim} tokens. However, your messages resulted in ${rec.est_input} tokens. Please reduce the length of the messages.`, type: "invalid_request_error", param: "messages", code: "context_length_exceeded" } }));
+		}
+		const status = Number(kind);
+		const anth = { 429: ["rate_limit_error", "Number of request tokens has exceeded your per-minute rate limit"], 401: ["authentication_error", "invalid x-api-key"], 500: ["api_error", "Internal server error"], 529: ["overloaded_error", "Overloaded"], 503: ["api_error", "Service unavailable"], 413: ["request_too_large", "Request exceeds the maximum allowed number of bytes"] }[status];
+		const oai = { 429: ["requests", "rate_limit_exceeded", "Rate limit reached for requests"], 401: ["invalid_request_error", "invalid_api_key", "Incorrect API key provided."], 500: ["server_error", "server_error", "The server had an error while processing your request."], 503: ["server_error", "service_unavailable", "The server is overloaded or not ready yet."], 413: ["invalid_request_error", "request_too_large", "Request too large."] }[status] ?? ["server_error", "server_error", "error"];
+		const gem = { 429: ["RESOURCE_EXHAUSTED", "Resource has been exhausted (e.g. check quota)."], 401: ["UNAUTHENTICATED", "API key not valid. Please pass a valid API key."], 500: ["INTERNAL", "An internal error has occurred."], 503: ["UNAVAILABLE", "The model is overloaded. Please try again later."], 413: ["INVALID_ARGUMENT", "Request payload size exceeds the limit."] }[status] ?? ["UNKNOWN", "error"];
+		const ra = f.retryAfter === false ? null : f.retryAfter != null ? String(f.retryAfter) : status === 429 ? "2" : null;
+		res.writeHead(status, { "content-type": "application/json", ...(ra ? { "retry-after": ra } : {}), ...(api === "anthropic" ? { "request-id": id("req_") } : {}) });
+		return res.end(JSON.stringify(api === "anthropic" ? { type: "error", error: { type: anth[0], message: anth[1] }, request_id: id("req_") }
+			: api === "gemini" ? { error: { code: status, message: gem[1], status: gem[0], ...(status === 429 && ra ? { details: [{ "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: `${ra}s` }] } : {}) } }
+			: { error: { message: oai[2], type: oai[0], param: null, code: oai[1] } }));
+	};
+	const inWindow = () => f.start != null && Date.now() - f.start < f.window;
+	if (f && f.kind === "flap") {
+		// request-based flapping for the whole window: after `after` main requests, main requests go down, down, up, ...; side calls fail while down
+		if (isMain && f.seen++ >= f.after) {
+			f.start ??= Date.now();
+			f.k = (f.k ?? -1) + 1;
+			if (inWindow() && f.k % 3 !== 2) { rec.injected = "flap"; return fail("reset"); }
+		}
+	} else if (f && f.kind === "overflow") {
+		// context limit = last accepted main request + 1 KB once `after` main requests passed: the next turn (one more 16 KB output) overflows
+		if (isMain) {
+			if (f.threshold == null && f.seen >= f.after) f.threshold = (f.lastMain ?? raw.length) + 1024;
+			f.seen++;
+			if (f.threshold != null && raw.length > f.threshold) { rec.injected = "overflow"; return fail("overflow"); }
+			f.lastMain = raw.length;
+		}
+	} else if (f && MODEL_FAULTS.has(f.kind)) {
+		if (isMain && rec.stream && f.seen >= f.after && f.count > 0 && (p.kind === "tool" || p.kind === "custom")) modelFault = f.kind;
+		if (isMain) f.seen++;
+	} else if (f) {
+		const open = inWindow() && f.count > 0;
+		const kind0 = f.seq ? f.seq[0] : f.kind;
+		const streamOnly = MIDSTREAM.has(kind0) && !rec.stream;  // mid-stream faults need a stream: non-stream calls pass and do not consume the count
+		if (isMain && !streamOnly && (open || (f.start == null && f.seen >= f.after && f.count > 0))) {
+			f.start ??= Date.now();
+			f.count--;
+			const kind = f.seq ? f.seq.shift() : f.kind;
+			if (f.seq && !f.seq.length) f.count = 0;
+			rec.injected = kind;
+			if (api !== "anthropic" && kind === "529") rec.fault_na = true;  // 529 exists only on Anthropic
+			if (MIDSTREAM.has(kind)) {
+				midFault = kind;
+				midWindow = f.window === Infinity ? 120000 : f.window;
+			} else return fail(kind);
+		} else if (!isMain && open && f.window !== Infinity && !MIDSTREAM.has(kind0)) {
+			rec.injected = kind0;  // outage windows hit side calls too (logged side, not counted)
+			return fail(kind0);
+		}
+		if (isMain) f.seen++;
+	}
+	if (modelFault) {
 		f.count--;
 		rec.injected = modelFault;
 		// gemini: each chunk carries whole parts, so a duplicated chunk is a valid second call, not a protocol duplicate
 		if ((modelFault === "reorder" && api !== "anthropic" && api !== "responses") || ((modelFault === "truncate_tool" || modelFault === "dup_events") && api === "gemini")) rec.fault_na = true;
 		p = planFault(p, modelFault, api);
-	} else modelFault = null;
+	}
 	const out = p.kind === "tool" ? JSON.stringify(p.args) : p.kind === "custom" ? p.input : p.text;
 	const cached = Math.floor(cachedPrefix(tag, raw) / 4);
 	const usage = { input: rec.est_input, cached, output: Math.max(1, estTokens(out)) };
@@ -563,7 +588,7 @@ const server = http.createServer(async (req, res) => {
 	const allOut = view.outputs.join("\n");
 	rec.markers = scen && SCRIPTS[scen] ? SCRIPTS[scen].filter(([, mk]) => allOut.includes(mk)).map(([, mk]) => mk) : [];
 	const agent = (view.users.join(" ").match(/\[(a\d{3})\]/) ?? [])[1];
-	Object.assign(rec, { agent, side: p.side, compaction: p.compaction || undefined, gave_up: p.gaveUp || undefined, reply: p.kind, scenario: p.scenario ?? null, step: p.step ?? null, out_tokens: usage.output, text: p.kind === "text" ? p.text.slice(0, 80) : undefined });
+	Object.assign(rec, { agent, side: p.side ?? rec.side, compaction: p.compaction || undefined, gave_up: p.gaveUp || undefined, reply: p.kind, scenario: p.scenario ?? null, step: p.step ?? null, out_tokens: usage.output, text: p.kind === "text" ? p.text.slice(0, 80) : undefined });
 	appendFileSync(log, JSON.stringify(rec) + "\n");
 	try {
 		if (api === "anthropic") await anthropic(req, res, b, p, usage);

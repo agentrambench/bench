@@ -199,8 +199,8 @@ def main():
                 for suf, label, unit, better, vals in (
                         ("score", "graded score (1 alone, 0.6 / 0.3 after 1 / 2 continues, -0.2 duplicate side effect, -0.1 per 10 wasted requests)", "score", "higher", [r["grade"] for r in rs]),
                         ("done_alone", "finished without user action", "rate", "higher", [1.0 if r.get("success_without_user") else 0.0 for r in rs]),
-                        ("recovery_s", "end of fault to next successful model response", "s", "lower", [r.get("recovered_request_after_last_fault_s") for r in rs]),
-                        ("wasted_requests", "requests during the fault beyond the backoff allowance", "requests", "lower", [r.get("wasted_requests") for r in rs]),
+                        ("recovery_s", "end of fault to the next completed task response (window faults: window end)", "s", "lower", [r.get("recovery_s") for r in rs]),
+                        ("wasted_requests", "failed requests beyond one per step of a 1, 2, 4 ... 60 s backoff over the fault (counted faults: beyond the count)", "requests", "lower", [r.get("wasted_requests") for r in rs]),
                         ("dup_side_effects", "steps executed twice (sidefx.log)", "count", "lower", [(r.get("sidefx") or {}).get("duplicates", 0) for r in rs])):
                     METRICS.setdefault(f"fault_{prof}_{suf}", ("reliability", f"Fault: {lab}: {label}", unit, better, suf == "score" and prof in ("429x3", "truncate")))
                     res.append(entry(h, f"fault_{prof}_{suf}", vals, 1, d.name))
@@ -339,6 +339,9 @@ def main():
             res.append(e)
     res = [r for r in res if r and r["harness"] in CLI]
     start = EDITION_START[args.edition]
+    later = [v for e, v in EDITION_START.items() if e > args.edition]
+    if later:  # re-exporting an older edition: ignore runs made for later ones
+        res = [r for r in res if not any(t >= min(later) for t in RUN_TS.findall(r["source"]))]
     for r in res:
         ts = RUN_TS.findall(r["source"])
         if ts and max(ts) < start:
