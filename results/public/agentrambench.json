@@ -1,6 +1,6 @@
 {
  "schema": "agentrambench/1",
- "status": "preliminary",
+ "status": "final",
  "reproduce": {
   "command": "git clone https://github.com/agentrambench/bench && cd bench && ./setup.sh && python3 hb.py quick && python3 export.py",
   "minutes": 30,
@@ -9,9 +9,9 @@
  "raw_archive": "https://github.com/agentrambench/bench/releases/download/edition-2026-12/raw-2026-12.tar.zst",
  "edition": "2026-12",
  "frozen": "2026-11-18",
- "generated": "2026-11-18T04:35:00+0100",
- "bench_commit": "2e2d016",
- "bench_private_commit": "e706f06",
+ "generated": "2026-11-18T05:44:41+0100",
+ "bench_commit": "18b46b6",
+ "bench_private_commit": "1e65ce3",
  "llm": "local deterministic mock (Anthropic Messages / OpenAI Responses / Gemini generateContent); no real model",
  "machine": {
   "cpu": "Intel(R) Core(TM) i7-10700KF CPU @ 3.80GHz",
@@ -24,7 +24,7 @@
   "task": "task-20261106-132208",
   "crash": "crash-20261106-141500",
   "crash_sigterm": "crash-20261118-014024",
-  "fault": "fault-20261117-170718-2,fault-20261118-014024-3,fault-20261118-034027-1,fault-20261118-040648-4",
+  "fault": "fault-20261117-170718-1,fault-20261118-014024-6,fault-20261118-034027,fault-20261118-040648-6",
   "herd": "herd-20261106-162244"
  },
  "sources_by_harness": {
@@ -340,14 +340,6 @@
    "headline": false
   },
   {
-   "id": "burst_cpu_s_per_agent",
-   "axis": "resources",
-   "label": "CPU per agent when all N agents run a 3-step turn at once",
-   "unit": "s",
-   "better": "lower",
-   "headline": false
-  },
-  {
    "id": "burst_peak_anon_mib_per_agent",
    "axis": "resources",
    "label": "Peak private RAM per agent while all N agents work at once (incl. terminal and tools)",
@@ -420,31 +412,6 @@
    "unit": "MiB",
    "better": "lower",
    "headline": false
-  },
-  {
-   "id": "burst_turn_s_p50",
-   "axis": "fleet",
-   "label": "Median turn time when all N agents work at once (mock model, constant latency)",
-   "unit": "s",
-   "better": "lower",
-   "headline": false
-  },
-  {
-   "id": "burst_turn_s_p90",
-   "axis": "fleet",
-   "label": "p90 turn time when all N agents work at once",
-   "unit": "s",
-   "better": "lower",
-   "headline": false
-  },
-  {
-   "id": "burst_turn_inflation",
-   "axis": "fleet",
-   "label": "Turn-time inflation vs one agent alone (p50 at N / p50 at N=1)",
-   "unit": "x",
-   "better": "lower",
-   "headline": false,
-   "note": "mock latency is constant, so this is harness-side CPU and scheduling only, not model contention"
   },
   {
    "id": "resumed_anon_mib_per_agent",
@@ -1168,15 +1135,6 @@
    "in_totals": true
   },
   {
-   "id": "fault_tool-hang_recovery_s",
-   "axis": "reliability",
-   "label": "Fault: command never returns: end of fault to the next completed task response, before any continue (window faults: window end); empty when the harness did not recover alone",
-   "unit": "s",
-   "better": "lower",
-   "headline": false,
-   "in_totals": true
-  },
-  {
    "id": "fault_tool-hang_wasted_requests",
    "axis": "reliability",
    "label": "Fault: command never returns: failed requests beyond one per step of a 1, 2, 4 ... 60 s backoff over the fault (counted faults: beyond the count)",
@@ -1209,15 +1167,6 @@
    "label": "Fault: 50 MB / 10 MB / binary command output: finished without user action",
    "unit": "rate",
    "better": "higher",
-   "headline": false,
-   "in_totals": true
-  },
-  {
-   "id": "fault_tool-huge_recovery_s",
-   "axis": "reliability",
-   "label": "Fault: 50 MB / 10 MB / binary command output: end of fault to the next completed task response, before any continue (window faults: window end); empty when the harness did not recover alone",
-   "unit": "s",
-   "better": "lower",
    "headline": false,
    "in_totals": true
   },
@@ -1258,15 +1207,6 @@
    "in_totals": false
   },
   {
-   "id": "fault_loop-3min_recovery_s",
-   "axis": "reliability",
-   "label": "Fault: model never ends its turn (3 min): end of fault to the next completed task response, before any continue (window faults: window end); empty when the harness did not recover alone",
-   "unit": "s",
-   "better": "lower",
-   "headline": false,
-   "in_totals": false
-  },
-  {
    "id": "fault_loop-3min_wasted_requests",
    "axis": "reliability",
    "label": "Fault: model never ends its turn (3 min): failed requests beyond one per step of a 1, 2, 4 ... 60 s backoff over the fault (counted faults: beyond the count)",
@@ -1299,15 +1239,6 @@
    "label": "Fault: 503 for 5 min: finished without user action",
    "unit": "rate",
    "better": "higher",
-   "headline": false,
-   "in_totals": true
-  },
-  {
-   "id": "fault_503-5min_recovery_s",
-   "axis": "reliability",
-   "label": "Fault: 503 for 5 min: end of fault to the next completed task response, before any continue (window faults: window end); empty when the harness did not recover alone",
-   "unit": "s",
-   "better": "lower",
    "headline": false,
    "in_totals": true
   },
@@ -1348,15 +1279,6 @@
    "in_totals": true
   },
   {
-   "id": "fault_503-15min_recovery_s",
-   "axis": "reliability",
-   "label": "Fault: 503 for 15 min: end of fault to the next completed task response, before any continue (window faults: window end); empty when the harness did not recover alone",
-   "unit": "s",
-   "better": "lower",
-   "headline": false,
-   "in_totals": true
-  },
-  {
    "id": "fault_503-15min_wasted_requests",
    "axis": "reliability",
    "label": "Fault: 503 for 15 min: failed requests beyond one per step of a 1, 2, 4 ... 60 s backoff over the fault (counted faults: beyond the count)",
@@ -1393,15 +1315,6 @@
    "in_totals": true
   },
   {
-   "id": "fault_529-5min_recovery_s",
-   "axis": "reliability",
-   "label": "Fault: 529 overloaded for 5 min: end of fault to the next completed task response, before any continue (window faults: window end); empty when the harness did not recover alone",
-   "unit": "s",
-   "better": "lower",
-   "headline": false,
-   "in_totals": true
-  },
-  {
    "id": "fault_529-5min_wasted_requests",
    "axis": "reliability",
    "label": "Fault: 529 overloaded for 5 min: failed requests beyond one per step of a 1, 2, 4 ... 60 s backoff over the fault (counted faults: beyond the count)",
@@ -1434,15 +1347,6 @@
    "label": "Fault: 429 for 5 min, no Retry-After: finished without user action",
    "unit": "rate",
    "better": "higher",
-   "headline": false,
-   "in_totals": true
-  },
-  {
-   "id": "fault_429-5min-noRA_recovery_s",
-   "axis": "reliability",
-   "label": "Fault: 429 for 5 min, no Retry-After: end of fault to the next completed task response, before any continue (window faults: window end); empty when the harness did not recover alone",
-   "unit": "s",
-   "better": "lower",
    "headline": false,
    "in_totals": true
   },
@@ -1524,15 +1428,6 @@
    "label": "Fault: 401 for 5 min, then the same key works: finished without user action",
    "unit": "rate",
    "better": "higher",
-   "headline": false,
-   "in_totals": true
-  },
-  {
-   "id": "fault_auth-5min_recovery_s",
-   "axis": "reliability",
-   "label": "Fault: 401 for 5 min, then the same key works: end of fault to the next completed task response, before any continue (window faults: window end); empty when the harness did not recover alone",
-   "unit": "s",
-   "better": "lower",
    "headline": false,
    "in_totals": true
   },
@@ -2158,15 +2053,6 @@
    "in_totals": true
   },
   {
-   "id": "fault_tool-flood_recovery_s",
-   "axis": "reliability",
-   "label": "Fault: command prints 500 MB: end of fault to the next completed task response, before any continue (window faults: window end); empty when the harness did not recover alone",
-   "unit": "s",
-   "better": "lower",
-   "headline": false,
-   "in_totals": true
-  },
-  {
    "id": "fault_tool-flood_wasted_requests",
    "axis": "reliability",
    "label": "Fault: command prints 500 MB: failed requests beyond one per step of a 1, 2, 4 ... 60 s backoff over the fault (counted faults: beyond the count)",
@@ -2199,15 +2085,6 @@
    "label": "Fault: disk full in the workspace: finished without user action",
    "unit": "rate",
    "better": "higher",
-   "headline": false,
-   "in_totals": true
-  },
-  {
-   "id": "fault_enospc-tool_recovery_s",
-   "axis": "reliability",
-   "label": "Fault: disk full in the workspace: end of fault to the next completed task response, before any continue (window faults: window end); empty when the harness did not recover alone",
-   "unit": "s",
-   "better": "lower",
    "headline": false,
    "in_totals": true
   },
@@ -2248,15 +2125,6 @@
    "in_totals": true
   },
   {
-   "id": "fault_enospc-session_recovery_s",
-   "axis": "reliability",
-   "label": "Fault: disk full under HOME (harness config, sessions, logs): end of fault to the next completed task response, before any continue (window faults: window end); empty when the harness did not recover alone",
-   "unit": "s",
-   "better": "lower",
-   "headline": false,
-   "in_totals": true
-  },
-  {
    "id": "fault_enospc-session_wasted_requests",
    "axis": "reliability",
    "label": "Fault: disk full under HOME (harness config, sessions, logs): failed requests beyond one per step of a 1, 2, 4 ... 60 s backoff over the fault (counted faults: beyond the count)",
@@ -2289,15 +2157,6 @@
    "label": "Fault: terminal quota or spend limit returned as 429 (insufficient_quota / enforced_spend_limit_reached / per-day quota): finished without user action",
    "unit": "rate",
    "better": "higher",
-   "headline": false,
-   "in_totals": true
-  },
-  {
-   "id": "fault_quota-429_recovery_s",
-   "axis": "reliability",
-   "label": "Fault: terminal quota or spend limit returned as 429 (insufficient_quota / enforced_spend_limit_reached / per-day quota): end of fault to the next completed task response, before any continue (window faults: window end); empty when the harness did not recover alone",
-   "unit": "s",
-   "better": "lower",
    "headline": false,
    "in_totals": true
   },
@@ -2518,15 +2377,6 @@
    "in_totals": true
   },
   {
-   "id": "fault_utf8_recovery_s",
-   "axis": "reliability",
-   "label": "Fault: invalid and split UTF-8 in tool output and stream: end of fault to the next completed task response, before any continue (window faults: window end); empty when the harness did not recover alone",
-   "unit": "s",
-   "better": "lower",
-   "headline": false,
-   "in_totals": true
-  },
-  {
    "id": "fault_utf8_wasted_requests",
    "axis": "reliability",
    "label": "Fault: invalid and split UTF-8 in tool output and stream: failed requests beyond one per step of a 1, 2, 4 ... 60 s backoff over the fault (counted faults: beyond the count)",
@@ -2563,15 +2413,6 @@
    "in_totals": true
   },
   {
-   "id": "fault_pipe-hold_recovery_s",
-   "axis": "reliability",
-   "label": "Fault: background children keep the tool's stdout open: end of fault to the next completed task response, before any continue (window faults: window end); empty when the harness did not recover alone",
-   "unit": "s",
-   "better": "lower",
-   "headline": false,
-   "in_totals": true
-  },
-  {
    "id": "fault_pipe-hold_wasted_requests",
    "axis": "reliability",
    "label": "Fault: background children keep the tool's stdout open: failed requests beyond one per step of a 1, 2, 4 ... 60 s backoff over the fault (counted faults: beyond the count)",
@@ -2604,15 +2445,6 @@
    "label": "Fault: stale .git/index.lock in the workspace repo: finished without user action",
    "unit": "rate",
    "better": "higher",
-   "headline": false,
-   "in_totals": true
-  },
-  {
-   "id": "fault_index-lock_recovery_s",
-   "axis": "reliability",
-   "label": "Fault: stale .git/index.lock in the workspace repo: end of fault to the next completed task response, before any continue (window faults: window end); empty when the harness did not recover alone",
-   "unit": "s",
-   "better": "lower",
    "headline": false,
    "in_totals": true
   },
@@ -2719,6 +2551,31 @@
    "dup-events",
    "reorder"
   ]
+ },
+ "not_measured": {
+  "opencode": {
+   "marathon": {
+    "metrics": [
+     "marathon_idle_anon_mib",
+     "marathon_peak_anon_mib"
+    ],
+    "run": "idle-opencode-1-hbmarathon-tmux-20261118-044521",
+    "turns_done": 234,
+    "turns_target": 300,
+    "peak_anon_mib_before_stop": 1168,
+    "reason": "the harness ended its turn right after its own auto-compaction at tool turn 234 of 300 and did not continue on its own"
+   }
+  }
+ },
+ "withheld": {
+  "codex": {
+   "metrics": [
+    "harness_anon_mib_per_agent",
+    "tool_children_anon_mib",
+    "work_peak_anon_mib_per_agent"
+   ],
+   "reason": "harness/tool role split of 2026-11 runs counted the helper binary codex unpacks in its home folder as a tool (withdrawn in the 2026-11 corrections); cgroup totals unaffected"
+  }
  },
  "results": [
   {
@@ -26371,21 +26228,6 @@
   },
   {
    "harness": "codex",
-   "metric": "harness_anon_mib_per_agent",
-   "n_agents": 1,
-   "runs": 1,
-   "median": 23.0,
-   "min": 23.0,
-   "max": 23.0,
-   "values": [
-    23.0
-   ],
-   "source": "idle-codex-1-hblong-tmux-20261107-084750",
-   "hold_s": 300,
-   "carried_from": "2026-11"
-  },
-  {
-   "harness": "codex",
    "metric": "terminal_anon_mib_per_agent",
    "n_agents": 1,
    "runs": 1,
@@ -26409,36 +26251,6 @@
    "max": 83.6,
    "values": [
     83.6
-   ],
-   "source": "idle-codex-1-hblong-tmux-20261107-084750",
-   "hold_s": 300,
-   "carried_from": "2026-11"
-  },
-  {
-   "harness": "codex",
-   "metric": "tool_children_anon_mib",
-   "n_agents": 1,
-   "runs": 1,
-   "median": 68.6,
-   "min": 68.6,
-   "max": 68.6,
-   "values": [
-    68.6
-   ],
-   "source": "idle-codex-1-hblong-tmux-20261107-084750",
-   "hold_s": 300,
-   "carried_from": "2026-11"
-  },
-  {
-   "harness": "codex",
-   "metric": "work_peak_anon_mib_per_agent",
-   "n_agents": 1,
-   "runs": 1,
-   "median": 23.3,
-   "min": 23.3,
-   "max": 23.3,
-   "values": [
-    23.3
    ],
    "source": "idle-codex-1-hblong-tmux-20261107-084750",
    "hold_s": 300,
@@ -26669,21 +26481,6 @@
   },
   {
    "harness": "codex",
-   "metric": "harness_anon_mib_per_agent",
-   "n_agents": 10,
-   "runs": 1,
-   "median": 22.78,
-   "min": 22.78,
-   "max": 22.78,
-   "values": [
-    22.78
-   ],
-   "source": "idle-codex-10-hblong-tmux-20261107-144536",
-   "hold_s": 900,
-   "carried_from": "2026-11"
-  },
-  {
-   "harness": "codex",
    "metric": "terminal_anon_mib_per_agent",
    "n_agents": 10,
    "runs": 1,
@@ -26707,36 +26504,6 @@
    "max": 37.9,
    "values": [
     37.9
-   ],
-   "source": "idle-codex-10-hblong-tmux-20261107-144536",
-   "hold_s": 900,
-   "carried_from": "2026-11"
-  },
-  {
-   "harness": "codex",
-   "metric": "tool_children_anon_mib",
-   "n_agents": 10,
-   "runs": 1,
-   "median": 183.1,
-   "min": 183.1,
-   "max": 183.1,
-   "values": [
-    183.1
-   ],
-   "source": "idle-codex-10-hblong-tmux-20261107-144536",
-   "hold_s": 900,
-   "carried_from": "2026-11"
-  },
-  {
-   "harness": "codex",
-   "metric": "work_peak_anon_mib_per_agent",
-   "n_agents": 10,
-   "runs": 1,
-   "median": 23.75,
-   "min": 23.75,
-   "max": 23.75,
-   "values": [
-    23.75
    ],
    "source": "idle-codex-10-hblong-tmux-20261107-144536",
    "hold_s": 900,
@@ -27180,21 +26947,6 @@
   },
   {
    "harness": "codex",
-   "metric": "harness_anon_mib_per_agent",
-   "n_agents": 50,
-   "runs": 1,
-   "median": 21.942,
-   "min": 21.942,
-   "max": 21.942,
-   "values": [
-    21.942
-   ],
-   "source": "idle-codex-50-hblong-tmux-20261106-165442,idle-codex-50-hblong-tmux-20261107-085449",
-   "hold_s": 3600,
-   "carried_from": "2026-11"
-  },
-  {
-   "harness": "codex",
    "metric": "terminal_anon_mib_per_agent",
    "n_agents": 50,
    "runs": 1,
@@ -27218,36 +26970,6 @@
    "max": 31.684,
    "values": [
     31.684
-   ],
-   "source": "idle-codex-50-hblong-tmux-20261106-165442,idle-codex-50-hblong-tmux-20261107-085449",
-   "hold_s": 3600,
-   "carried_from": "2026-11"
-  },
-  {
-   "harness": "codex",
-   "metric": "tool_children_anon_mib",
-   "n_agents": 50,
-   "runs": 1,
-   "median": 471.8,
-   "min": 471.8,
-   "max": 471.8,
-   "values": [
-    471.8
-   ],
-   "source": "idle-codex-50-hblong-tmux-20261106-165442,idle-codex-50-hblong-tmux-20261107-085449",
-   "hold_s": 3600,
-   "carried_from": "2026-11"
-  },
-  {
-   "harness": "codex",
-   "metric": "work_peak_anon_mib_per_agent",
-   "n_agents": 50,
-   "runs": 1,
-   "median": 24.268,
-   "min": 24.268,
-   "max": 24.268,
-   "values": [
-    24.268
    ],
    "source": "idle-codex-50-hblong-tmux-20261106-165442,idle-codex-50-hblong-tmux-20261107-085449",
    "hold_s": 3600,
