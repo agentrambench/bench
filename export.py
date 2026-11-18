@@ -70,6 +70,8 @@ REPRODUCE = {"command": "git clone https://github.com/agentrambench/bench && cd 
 EDITION = "2026-12"
 # first run timestamp of each edition; older pinned runs are carried (rows marked carried_from), except what the edition re-measures
 EDITION_START = {"2026-11": "00000000-000000", "2026-12": "20261117-134000"}
+ROLE_SPLIT = {"harness_anon_mib_per_agent", "tool_children_anon_mib", "work_peak_anon_mib_per_agent"}
+LATER = None  # first run timestamp of the next edition, when exporting an older one
 RUN_TS = re.compile(r"(\d{8}-\d{6})")
 
 METRICS = {
@@ -128,6 +130,8 @@ def newest(prefix, name, h, keep=lambda r: True):
     best = (None, None, 0)
     for d in sorted(RAW.glob(prefix + "*")):
         f = d / name
+        if LATER and any(t >= LATER for t in RUN_TS.findall(d.name)):  # run made for a later edition
+            continue
         if f.exists():
             x = json.loads(f.read_text())
             k = sum(1 for r in x.get("rows", []) if r.get("harness") == h and keep(r))
@@ -151,7 +155,9 @@ def main():
     ap.add_argument("--edition", default=EDITION, choices=list(EDITION_START))
     args = ap.parse_args()
     ed12 = args.edition >= "2026-12"
-    res, sources, versions, fault_na = [], {}, {}, {}
+    global LATER
+    LATER = min((v for e, v in EDITION_START.items() if e > args.edition), default=None)
+    res, sources, versions, fault_na, withheld, not_measured = [], {}, {}, {}, {}, {}
     by_h = {}
 
     def src(scen, h, d):
@@ -281,6 +287,9 @@ def main():
             per = [x["at_hold_end"]["cg_anon_mib"] / n for _, x in xs]
             add = lambda m, vs: res.append(dict(entry(h, m, vs, n, src) or {}, hold_s=hold) if vs else None)
             aw = [x for _, x in xs if "after_work" in x]
+            # codex role split before cde2981 (17/11) counted the helper binary codex unpacks in its HOME as a tool: withheld from 2026-12 (raw has no per-process detail to redo it)
+            if ed12 and h == "codex" and any(max(RUN_TS.findall(name) or ["0"]) < "20261117-140500" for name, _ in xs):
+                add = (lambda add0: lambda m, vs: withheld.setdefault(h, set()).add(m) if m in ROLE_SPLIT else add0(m, vs))(add)
             if hold:  # burst-only fleets (--hold 0) have no idle hold: no idle cells
                 add("idle_anon_mib_per_agent", per)
                 add("idle_cpu_s_per_agent_hour", [x["idle_cpu_s"] / n / (hold / 3600) for _, x in xs])
@@ -356,6 +365,14 @@ def main():
             recs = [json.loads(l) for l in open(d / "mock/requests.jsonl") if '"tag"' in l]
             recs = [r for r in recs if r.get("tag", "").endswith("-idle")]
             if not any(r.get("step") == "seq299" for r in recs):
+                steps = [int(r["step"][3:]) for r in recs if str(r.get("step", "")).startswith("seq") and r.get("scenario") == "HBMARATHON"]
+                main = [r for r in recs if r.get("api") in ("anthropic", "responses", "chat", "gemini")]
+                last = max((i for i, r in enumerate(main) if r.get("scenario") == "HBMARATHON" and r.get("step")), default=None)
+                if ed12 and steps and last is not None and any(r.get("compaction") for r in main[last + 1:last + 3]) and h not in {r["harness"] for r in res if r and r["metric"] == "marathon_idle_anon_mib"}:
+                    not_measured.setdefault(h, {})["marathon"] = {
+                        "metrics": ["marathon_idle_anon_mib", "marathon_peak_anon_mib"], "run": d.name, "turns_done": max(steps) + 1, "turns_target": 300,
+                        "peak_anon_mib_before_stop": x["work_phase"]["max_anon_mib"],
+                        "reason": f"the harness ended its turn right after its own auto-compaction at tool turn {max(steps) + 1} of 300 and did not continue on its own"}
                 continue
             extra = {"turns": 300, "compaction_requests": sum(1 for r in recs if r.get("compaction") and r.get("bytes", 0) > 50000), "max_request_kb": round(max(r.get("bytes", 0) for r in recs) / 1000)}
             for key, val in (("marathon_idle_anon_mib", x["at_hold_end"]["cg_anon_mib"]), ("marathon_peak_anon_mib", x["work_phase"]["max_anon_mib"])):
@@ -392,6 +409,7 @@ def main():
     git = lambda *a: subprocess.run(["git", *a], cwd=ROOT, capture_output=True, text=True).stdout.strip()
     mem = int(next(l for l in open("/proc/meminfo") if l.startswith("MemTotal")).split()[1]) / 2**20
     cpu = next((l.split(":", 1)[1].strip() for l in open("/proc/cpuinfo") if l.startswith("model name")), "")
+    have = {r["metric"] for r in res}
     doc = {
         "schema": "agentrambench/1",
         "status": "final" if args.final else "preliminary",
@@ -410,9 +428,9 @@ def main():
         "harnesses": [{"id": h, "name": NAMES[h], "version": CLI[h].version, "status": "measured", "non_default_flags": FLAGS[h], **({"note": HNOTES[h]} if h in HNOTES else {}), **({"provisional": PROVISIONAL[h]} if h in PROVISIONAL else {})} for h in CLI if any(r["harness"] == h for r in res)]
                      + [{"id": k, "name": k, "status": "not_measurable", "reason": v} for k, v in NOT_MEASURABLE.items()]
                      + [{"id": k, "name": v[0], "status": "not_runnable_offline", "reason": v[1]} for k, v in OFFLINE.items()],
-        "metrics": [{"id": k, "axis": v[0], "label": v[1], "unit": v[2], "better": v[3], "headline": v[4], **({"note": NOTES[k]} if k in NOTES else {}), **({"in_totals": not any(k.startswith(f"fault_{p}_") for p in ("loop-3min", "429-RA3600"))} if k.startswith("fault_") else {})} for k, v in METRICS.items()],
-        "fault_labels": FAULT_LABELS,
-        **({"fault_na": fault_na} if ed12 else {}),
+        "metrics": [{"id": k, "axis": v[0], "label": v[1], "unit": v[2], "better": v[3], "headline": v[4], **({"note": NOTES[k]} if k in NOTES else {}), **({"in_totals": not any(k.startswith(f"fault_{p}_") for p in ("loop-3min", "429-RA3600"))} if k.startswith("fault_") else {})} for k, v in METRICS.items() if k in have],
+        "fault_labels": {k: v for k, v in FAULT_LABELS.items() if any(m.startswith(f"fault_{k}_") for m in have)},
+        **({"fault_na": fault_na, "not_measured": not_measured, "withheld": {h: {"metrics": sorted(ms), "reason": "harness/tool role split of 2026-11 runs counted the helper binary codex unpacks in its home folder as a tool (withdrawn in the 2026-11 corrections); cgroup totals unaffected"} for h, ms in withheld.items()}} if ed12 else {}),
         "results": res,
     }
     assert all(r["harness"] in CLI for r in res) and all(h["id"] in CLI or h["status"] != "measured" for h in doc["harnesses"])

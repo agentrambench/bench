@@ -1162,13 +1162,22 @@ def idle_series_row(s, t0):
 class Tmux:
     """Private tmux server (no D-Bus in its env, so tmux keeps every pane in the server's own scope = our slice)."""
 
+    @staticmethod
+    def sockdir(base):
+        """Short socket dir: unix socket paths are capped at 108 bytes (long run names broke opencode marathon runs)."""
+        import hashlib
+        d = Path(os.environ.get("XDG_RUNTIME_DIR") or "/tmp") / "hbt" / hashlib.sha1(str(base).encode()).hexdigest()[:10]
+        d.mkdir(parents=True, exist_ok=True)
+        d.chmod(0o700)
+        return str(d)
+
     def __init__(self, base, slice_, mem_max):
         self.dir = base / "tmux"
         self.dir.mkdir(parents=True, exist_ok=True)
         self.dir.chmod(0o700)
         self.conf = self.dir / "tmux.conf"
         self.conf.write_text("set -g default-size 120x40\nset -g exit-empty off\nset -g remain-on-exit off\n")
-        self.env = {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": str(self.dir), "TERM": "xterm-256color", "TMUX_TMPDIR": str(self.dir), "LANG": "C.UTF-8"}
+        self.env = {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": str(self.dir), "TERM": "xterm-256color", "TMUX_TMPDIR": self.sockdir(base), "LANG": "C.UTF-8"}
         scoped(f"hb-tmux-{base.name}-{os.getpid()}", ["tmux", "-L", "hb", "-f", str(self.conf), "new-session", "-d", "-s", "hb", "-n", "hold", "sleep infinity"],
                base / "tmux.stat", slice_=slice_, mem_max=mem_max, env=self.env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).wait(30)
 
