@@ -38,7 +38,12 @@ FAULT_LABELS = {"429x3": "429 ×3", "429-60s": "429 for 60 s", "529x3": "529 ove
                 "flap-3min": "connections cut 5 s of every 20 s for 3 min", "compound": "429, then reset, then stream cut", "html200": "200 OK with an HTML proxy page",
                 "empty200": "200 OK with an empty body", "413": "413 request too large", "overflow": "context overflow (provider's real 400 error)",
                 "truncate-tool": "stream cut inside a half-written tool call", "max-tokens-tool": "max_tokens inside a tool call", "bad-tool-call": "malformed tool-call JSON from the model",
-                "unknown-tool": "model calls an unknown tool", "dup-events": "duplicated stream events", "reorder": "out-of-order stream events", "tool-flood": "command prints 500 MB"}
+                "unknown-tool": "model calls an unknown tool", "dup-events": "duplicated stream events", "reorder": "out-of-order stream events", "tool-flood": "command prints 500 MB",
+                "quota-429": "terminal quota or spend limit returned as 429 (insufficient_quota / enforced_spend_limit_reached / per-day quota)",
+                "refusal-200": "safety refusal returned as HTTP 200 (refusal / content_filter / SAFETY)", "keepalive-stall": "stream sends only keepalive pings for 5 min",
+                "quiet-stream": "healthy stream silent for 90 s, then completes", "utf8": "invalid and split UTF-8 in tool output and stream",
+                "pipe-hold": "background children keep the tool's stdout open", "index-lock": "stale .git/index.lock in the workspace repo",
+                "enospc-tool": "disk full in the workspace", "enospc-session": "disk full under HOME (harness config, sessions, logs)"}
 NOTES = {
     "task_anon_mib": "max over 4 Hz samples of cgroup memory.stat anon (private, not shared, no page cache), harness + its tool processes",
     "task_rss_mib": "sum of RSS over the harness processes; counts shared library pages in full",
@@ -91,7 +96,7 @@ METRICS = {
     "work_peak_anon_mib_per_agent": ("resources", "Peak private RAM per agent from launch to the start of the idle hold, harness only (Pss_Anon)", "MiB", "lower", False),
     "burst_cpu_s_per_agent": ("resources", "CPU per agent when all N agents run a 3-step turn at once", "s", "lower", False),
     "burst_peak_anon_mib_per_agent": ("resources", "Peak private RAM per agent while all N agents work at once (incl. terminal and tools)", "MiB", "lower", True),
-    "burst_work_cpu_s_per_agent": ("resources", "CPU per agent when all N agents run the same 15-step work turn at once", "s", "lower", False),
+    "burst_work_cpu_s_per_agent": ("resources", "CPU per agent when all N agents run the same 15-step work turn at once (night runs only)", "s", "lower", False),
     "burst_work_turn_s_p50": ("fleet", "Median 15-step work-turn time when all N agents work at once (mock model, constant latency)", "s", "lower", False),
     "burst_work_turn_s_p90": ("fleet", "p90 15-step work-turn time when all N agents work at once", "s", "lower", False),
     "burst_work_turn_inflation": ("fleet", "15-step work-turn time inflation vs one agent alone (p50 at N / p50 at N=1)", "x", "lower", False),
@@ -108,6 +113,7 @@ METRICS = {
     "resumed_peak_anon_mib_per_agent": ("resources", "Peak private RAM per agent, resumed real-size session (resume + turn + idle)", "MiB", "lower", False),
     "marathon_idle_anon_mib": ("resources", "Private RAM, one agent idle after 300 tool turns (~1M tokens, default compaction)", "MiB", "lower", False),
     "marathon_peak_anon_mib": ("resources", "Peak private RAM during 300 tool turns (~1M tokens, default compaction)", "MiB", "lower", False),
+    "burst_max_agents_reached": ("fleet", "Largest fleet (of 1, 10, 25, 50) where all agents started and finished the work turn at once", "agents", "higher", False),
     "fleet_max_agents_reached": ("fleet", "Largest fleet that started and survived the hold (tried up to 50)", "agents", "higher", False),
 }
 
@@ -185,8 +191,17 @@ def main():
                     res.append(entry(h, "crash_sigterm_clean_exit", [1.0 if r.get("exited_on_sigterm") else 0.0 for r in rs], 1, d.name))
                     METRICS.setdefault("crash_sigterm_turn_saved", ("reliability", "Crash (sigterm): the interrupted turn is in the resumed session (task prompt sent again on \"continue\")", "rate", "higher", False))
                     res.append(entry(h, "crash_sigterm_turn_saved", [1.0 if (not r.get("user_action_needed") or r.get("resume_prompt_recovered")) else 0.0 for r in rs], 1, d.name))
-        d, f = newest("fault-", "fault.json", h, lambda r: "grade" in r)
-        if f and ed12:
+        # graded faults: every complete graded run of this edition counts (one run per process: run-faults.sh)
+        gruns = []
+        for gd in sorted(RAW.glob("fault-*")):
+            ts = RUN_TS.findall(gd.name)
+            if ed12 and (gd / "fault.json").exists() and ts and max(ts) >= EDITION_START[args.edition]:
+                gx = json.loads((gd / "fault.json").read_text())
+                if gx.get("meta") and gx.get("complete") and any(r.get("harness") == h and "grade" in r for r in gx.get("rows", [])):
+                    gruns.append((gd, gx))
+        if gruns:
+            d = type("Runs", (), {"name": ",".join(gd.name for gd, _ in gruns)})()
+            f = {"profiles": list(dict.fromkeys(p for _, gx in gruns for p in gx["profiles"])), "rows": [r for _, gx in gruns for r in gx["rows"]]}
             src("fault", h, d)
             for prof in f["profiles"]:
                 rs = [r for r in f["rows"] if r["harness"] == h and r["fault"] == prof and "grade" in r]
@@ -199,11 +214,19 @@ def main():
                 for suf, label, unit, better, vals in (
                         ("score", "graded score (1 alone, 0.6 / 0.3 after 1 / 2 continues, -0.2 duplicate side effect, -0.1 per 10 wasted requests)", "score", "higher", [r["grade"] for r in rs]),
                         ("done_alone", "finished without user action", "rate", "higher", [1.0 if r.get("success_without_user") else 0.0 for r in rs]),
-                        ("recovery_s", "end of fault to the next completed task response (window faults: window end)", "s", "lower", [r.get("recovery_s") for r in rs]),
+                        ("recovery_s", "end of fault to the next completed task response, before any continue (window faults: window end); empty when the harness did not recover alone", "s", "lower", [r.get("recovery_s") for r in rs]),
                         ("wasted_requests", "failed requests beyond one per step of a 1, 2, 4 ... 60 s backoff over the fault (counted faults: beyond the count)", "requests", "lower", [r.get("wasted_requests") for r in rs]),
-                        ("dup_side_effects", "steps executed twice (sidefx.log)", "count", "lower", [(r.get("sidefx") or {}).get("duplicates", 0) for r in rs])):
+                        ("dup_side_effects", "steps executed twice (sidefx.log)", "count", "lower", [(r.get("sidefx") or {}).get("duplicates", 0) for r in rs]),
+                        *((("stopped_fast", "stopped within the allowed requests and 60 s", "rate", "higher", [1.0 if r.get("stopped_fast") else 0.0 for r in rs]),
+                           ("exit_nonzero", "headless exit code non-zero", "rate", "higher", [1.0 if r.get("exit_nonzero") else 0.0 for r in rs])) if "stopped_fast" in rs[0] else ()),
+                        *((("aborted_healthy", "killed or re-sent the healthy slow stream", "rate", "lower", [1.0 if r.get("aborted_healthy") else 0.0 for r in rs]),) if "aborted_healthy" in rs[0] else ())):
                     METRICS.setdefault(f"fault_{prof}_{suf}", ("reliability", f"Fault: {lab}: {label}", unit, better, suf == "score" and prof in ("429x3", "truncate")))
                     res.append(entry(h, f"fault_{prof}_{suf}", vals, 1, d.name))
+            # headless honesty: a run that did not finish alone should exit non-zero (timeouts excluded: the harness never ended)
+            hon = [0.0 if r["rc"] == 0 else 1.0 for r in f["rows"] if r["harness"] == h and "grade" in r and not r.get("success_without_user") and r.get("rc") not in ("timeout", None) and not r.get("fault_na")]
+            METRICS.setdefault("headless_exit_honest", ("reliability", "Headless: share of unfinished fault runs that exit non-zero (exit 0 = reported success)", "rate", "higher", False))
+            if hon:  # one value: the share (a median of 0/1 runs would hide it)
+                res.append(dict(entry(h, "headless_exit_honest", [round(sum(hon) / len(hon), 3)], 1, d.name), unfinished_runs=len(hon)))
         d, f = newest("fault-", "fault.json", h, lambda r: "grade" not in r)
         if f and not ed12:
             src("fault", h, d)
@@ -229,7 +252,7 @@ def main():
     for scen, m in by_h.items():
         sources[scen] = max(set(m.values()), key=list(m.values()).count)
     for h in CLI:
-        groups, ramp = {}, []
+        groups, ramp, bramp = {}, [], []
         for d in sorted(RAW.glob(f"idle-{h}-*")):
             p = d / "idle.json"
             if not p.exists():
@@ -243,6 +266,13 @@ def main():
                 why = "ok" if ok else (f"OOM-killed at the {x.get('slice_limits', {}).get('MemoryMax', '?')} cap" if ev.get("oom_kill") else
                                        "agents died during hold" if x.get("deaths") else f"{x.get('ready_agents')}/{x['n']} agents ready")
                 ramp.append((x["n"], ok, d.name, why))
+            if x.get("meta") and x.get("scenario") == "HBLONG" and x.get("hold_s") == 0:  # burst-only fleets: did all N start and finish the work turn
+                b = x.get("burst") or {}
+                ok = b.get("scenario") == "HBWORK" and b.get("agents_done") == x["n"]
+                ev = x.get("memory_events", {})
+                why = "ok" if ok else (f"OOM-killed at the {x.get('slice_limits', {}).get('MemoryMax', '?')} cap" if ev.get("oom_kill") else
+                                       f"{b.get('agents_done', x.get('ready_agents'))}/{x['n']} agents finished")
+                bramp.append((x["n"], ok, d.name, why))
             if not x.get("meta") or "at_hold_end" not in x or x.get("ready_agents") != x["n"] or x.get("scenario") != "HBLONG":
                 continue
             groups.setdefault((x["n"], x["hold_s"]), []).append((d.name, x))
@@ -281,7 +311,9 @@ def main():
                 add("burst_cpu_s_per_agent", [b["cpu_s_per_agent"] for b in old])
                 add("burst_turn_s_p50", [b["turn_s_p50"] for b in old])
                 add("burst_turn_s_p90", [b["turn_s_p90"] for b in old])
-            add("burst_work_cpu_s_per_agent", [b["cpu_s_per_agent"] for b in bs])
+            # CPU only from night runs (21:00-06:00): daytime background load inflated it 1.5-1.8x while RAM and turn time matched
+            night = {id(x["burst"]) for name, x in xs if "burst" in x and RUN_TS.findall(name) and (int(RUN_TS.findall(name)[-1][9:11]) >= 21 or int(RUN_TS.findall(name)[-1][9:11]) < 6)}
+            add("burst_work_cpu_s_per_agent", [b["cpu_s_per_agent"] for b in bs if id(b) in night])
             pk = [b for b in bs if b.get("peak")]
             add("burst_peak_anon_mib_per_agent", [b.get("peak_cg_anon_mib_fast", b["peak"]["cg_anon_mib"]) / n for b in pk])
             for r in ("harness", "terminal", "tool"):
@@ -330,10 +362,12 @@ def main():
                 e = entry(h, key, [val], 1, d.name)
                 e.update(extra)
                 res.append(e)
-        if ramp:
-            best = max((n for n, ok, _, _ in ramp if ok), default=0)
-            fails = sorted((n, why) for n, ok, _, why in ramp if not ok and n > best)
-            e = entry(h, "fleet_max_agents_reached", [best], 200, ",".join(name for _, _, name, _ in ramp))
+        for key, rp in (("fleet_max_agents_reached", ramp), ("burst_max_agents_reached", bramp)):
+            if not rp:
+                continue
+            best = max((n for n, ok, _, _ in rp if ok), default=0)
+            fails = sorted((n, why) for n, ok, _, why in rp if not ok and n > best)
+            e = entry(h, key, [best], 200, ",".join(name for _, _, name, _ in rp))
             if e and fails:
                 e["stop_reason"] = f"N={fails[0][0]}: {fails[0][1]}"
             res.append(e)

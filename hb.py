@@ -44,6 +44,7 @@ PROMPTS = {"HBTASK": "HBTASK: test_calc.py fails. Fix calc.py so the tests pass.
            "HBHUGE": "HBHUGE: run the three output commands.",
            "HBLOOP": "HBLOOP: keep checking until done.",
            "HBFX": "HBFX: run the four benchmark steps in order.",
+           "HBPIPE": "HBPIPE: run the four benchmark steps in order.",
            "HBFLOOD": "HBFLOOD: run the output command."}
 
 
@@ -748,6 +749,14 @@ FAULTS.update({
     "tool-flood": {"scenario": "HBFLOOD", "timeout": 300},
     # disk full (ENOSPC, needs HB_ENOSPC_DIR): tool = workspace on the full filesystem, the steps' appends fail (success = turn finished);
     # session = HOME (harness config, sessions, logs) on it, workspace elsewhere (success = all four steps)
+    # site failure review (#247ea269), 2026-12 additions
+    "quota-429": {**FX, "kind": "billing", "after": 1, "window_s": 100000, "expect": "stop", "stop_allow": 2, "timeout": 420},  # terminal quota as 429: stop fast, say so, exit non-zero
+    "refusal-200": {**FX, "kind": "refusal", "after": 1, "count": 1, "expect": "stop", "stop_allow": 1, "timeout": 300},  # safety stop as HTTP 200, once
+    "keepalive-stall": {**FX, "kind": "keepalive", "after": 1, "count": 1, "window_s": 300, "timeout": 780},  # pings only for 5 min, then drop
+    "quiet-stream": {**FX, "kind": "quiet", "after": 1, "count": 1, "window_s": 90, "expect": "no_abort", "timeout": 420},  # 90 s silent but healthy stream
+    "utf8": {**FX, "kind": "utf8", "fixture": "utf8", "timeout": 300},  # invalid/split UTF-8 in tool output and stream; invalid request bodies rejected
+    "pipe-hold": {"scenario": "HBPIPE", "timeout": 420},  # background children keep the tool's stdout open
+    "index-lock": {**FX, "git_lock": True, "timeout": 300},  # workspace repo with a stale .git/index.lock
     "enospc-tool": {**FX, "enospc": "tool", "timeout": 300},
     "enospc-session": {**FX, "enospc": "session", "timeout": 300},
 })
@@ -844,16 +853,28 @@ def fill(fs):
 
 
 def _fault_cli(h, mock, run, prof, small=None, where=None):
-    spec = {k: v for k, v in FAULTS[prof].items() if k != "enospc"}
+    spec = {k: v for k, v in FAULTS[prof].items() if k not in ("enospc", "expect", "stop_allow", "fixture", "git_lock")}
     sc, tmo = spec.pop("scenario", "HBTASK"), spec.pop("timeout", 240)
     tag = f"{h.name}-fault-{prof}-{run}"
     base = WORK / tag
     if base.exists():
         shutil.rmtree(base)
     ws = workspace((small if where == "tool" else base) / "ws")
-    if sc == "HBFX":
+    if sc in ("HBFX", "HBPIPE"):
         for f in (ROOT / "fixtures/long").glob("big_0[1-4].txt"):
             shutil.copy2(f, ws / f.name)
+    if FAULTS[prof].get("fixture") == "utf8":
+        # invalid bytes, a lone surrogate encoded as UTF-8 (CESU), and multibyte chars at common truncation offsets
+        blob = bytearray(b"FX-UTF8 \xff\xfe\xed\xa0\x80 " + "한국어 ✅ ".encode() + b"\n")
+        for off in (2048, 16384, 30000):
+            blob += b"x" * (off - 1 - len(blob)) + "🙂".encode()
+        (ws / "big_02.txt").write_bytes(bytes(blob) + b"\n")
+    if FAULTS[prof].get("git_lock"):
+        g = lambda *x: subprocess.run(["git", *x], cwd=ws, capture_output=True, check=True)
+        g("init", "-q")
+        g("add", "-A")
+        g("-c", "user.email=hb@example.invalid", "-c", "user.name=hb", "commit", "-qm", "init")
+        (ws / ".git/index.lock").write_text("")
     hbase = small / tag if where == "session" else base
     hbase.mkdir(parents=True, exist_ok=True)
     base.mkdir(parents=True, exist_ok=True)
@@ -877,12 +898,21 @@ def _fault_cli(h, mock, run, prof, small=None, where=None):
         p.wait(30)
         rc = "timeout"
     smp.stop()
+    t_run_end = time.time()
+    orphans = []
+    for pd in Path("/proc").iterdir():  # processes left running in this workspace (pipe-hold children)
+        try:
+            if pd.name.isdigit() and os.readlink(pd / "cwd").startswith(str(ws)):
+                orphans.append(int(pd.name))
+        except OSError:
+            pass
+    kill_all(orphans)
     st_ = read_stat(base / "cg.stat")
     out_tail = (base / "stdout").read_text(errors="replace")[-300:]
     if where == "tool":
         fx_done = lambda: bool(finals(mock.records(tag), "HBFX"))
-    elif sc == "HBFX":
-        fx_done = lambda: bool(finals(mock.records(tag), "HBFX")) and {f"FX-{k}" for k in (1, 2, 3, 4)} <= set(sidefx(ws)["steps"])
+    elif sc in ("HBFX", "HBPIPE"):
+        fx_done = lambda: bool(finals(mock.records(tag), sc)) and {f"FX-{k}" for k in (1, 2, 3, 4)} <= set(sidefx(ws)["steps"])
     elif sc == "HBLOOP":  # success = the harness ends the runaway turn itself before the timeout; no continues
         fx_done = lambda: rc != "timeout"
     else:
@@ -890,7 +920,7 @@ def _fault_cli(h, mock, run, prof, small=None, where=None):
     r = {"harness": h.name, "run": run, "fault": prof, "scenario": sc, "rc": rc, "wall_s": round(time.time() - t0, 1),
          "success_without_user": tests_pass(ws) if sc == "HBTASK" else fx_done(), "stdout_tail": out_tail,
          "max_anon_mib": round(smp.max.get("cg_anon", 0) / 2**20), "cg_memory_peak_mib": round(st_.get("memory_peak", 0) / 2**20), "cpu_s": round(st_.get("usage_usec", 0) / 1e6, 1),
-         "leftover_procs": st_.get("leftover_procs"), **fault_facts(mock.records(tag), t0, sc)}
+         "leftover_procs": st_.get("leftover_procs"), "workspace_orphans": len(orphans), **fault_facts(mock.records(tag), t0, sc)}
     if small:
         r.update(enospc=where, enospc_free_bytes=free_left, enospc_in_output=bool(re.search(r"no space left|ENOSPC", (base / "stdout").read_text(errors="replace"), re.I)))
     if sc == "HBTASK":
@@ -905,7 +935,7 @@ def _fault_cli(h, mock, run, prof, small=None, where=None):
     if sc != "HBTASK":
         recs = [x for x in mock.records(tag) if x.get("api") in ("anthropic", "responses", "chat", "gemini") and not x.get("side")]
         inj = [x for x in recs if x.get("injected")]
-        win = FAULTS[prof].get("window_s")
+        win = None if FAULTS[prof].get("expect") == "stop" else FAULTS[prof].get("window_s")
         # fault end: window profiles = first injected request + window; counted = end of the last injected response
         fault_end = (inj[0]["t"] + win) if inj and win else max((x.get("t_end") or x["t"]) for x in inj) if inj else None
         ok_after = [x for x in recs if inj and not x.get("injected") and x["n"] > inj[-1]["n"] and x.get("scenario") == sc and x.get("t_end")]
@@ -920,6 +950,17 @@ def _fault_cli(h, mock, run, prof, small=None, where=None):
             allow = FAULTS[prof].get("count") or (1 if inj else 0)  # overflow: the first rejection is unavoidable
         wasted = max(0, len(inj) - allow)
         r.update(fault_end_s=round(fault_end - t0, 1) if fault_end else None, wasted_allowance=allow)
+        expect = FAULTS[prof].get("expect")
+        if expect == "stop":
+            # right behaviour: stop within stop_allow requests and 60 s, tell the user (headless: non-zero exit); after the user fixes it, "continue" works
+            first = inj[0] if inj else None
+            during = [x for x in recs if first and x["n"] >= first["n"] and x["t"] <= t_run_end]
+            r.update(stop_requests=len(during), stop_s=round(t_run_end - first["t"], 1) if first else None,
+                     stopped_fast=bool(first) and rc != "timeout" and len(during) <= FAULTS[prof]["stop_allow"] and t_run_end - first["t"] <= 60,
+                     exit_nonzero=rc not in (0, "timeout"))
+        elif expect == "no_abort":
+            injected_step = inj[0].get("step") if inj else None
+            r["aborted_healthy"] = any(x.get("aborted_healthy") for x in recs) or sum(1 for x in recs if inj and x["n"] > inj[0]["n"] and x.get("step") == injected_step and x["t"] <= t_run_end) > 0
         if win and inj:  # the user presses "continue" once the outage is over, as in real use; overflow stays armed during the continues
             time.sleep(max(0.0, fault_end - time.time()))
         if FAULTS[prof].get("kind") != "overflow":
@@ -935,6 +976,10 @@ def _fault_cli(h, mock, run, prof, small=None, where=None):
         r.update(continues_used=cont if done else None, done_after_continues=done, sidefx=fx, wasted_requests=wasted,
                  fault_na=any(x.get("fault_na") for x in recs),
                  grade=fault_grade(r["success_without_user"], cont if done else 99, fx["duplicates"] > 0, wasted))
+        if expect == "stop":  # 0.5 stopped fast + 0.25 non-zero exit + 0.25 one "continue" finishes after the cause is fixed
+            r["grade"] = round(0.5 * r["stopped_fast"] + 0.25 * r["exit_nonzero"] + 0.25 * (done and cont <= 1), 2)
+        elif expect == "no_abort" and r["aborted_healthy"]:  # killed a healthy slow stream
+            r["grade"] = round(max(0.0, r["grade"] - 0.4), 2)
     return r
 
 

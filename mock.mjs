@@ -34,6 +34,8 @@ const SCRIPTS = {
 	HBIDLE: [["printf 'IDLE-%s\\n' READY", "IDLE-READY"]],
 	// graded-fault task: each step reads 16 KB and appends one line to sidefx.log, so re-executed steps show up as duplicate side effects
 	HBFX: [1, 2, 3, 4].map((k) => [`printf 'FX-%s\\n' ${k} | tee -a sidefx.log; cat big_0${k}.txt`, `FX-${k}`]),
+	// HBFX with a step that leaves background children holding stdout/stderr (the tool call must still return)
+	HBPIPE: [1, 2, 3, 4].map((k) => [(k === 2 ? "sh -c 'sleep 600 >/dev/null 2>&1 & sleep 600 & echo started'; " : "") + `printf 'FX-%s\\n' ${k} | tee -a sidefx.log; cat big_0${k}.txt`, `FX-${k}`]),
 	HBSTREAM: [["printf 'ONE-%s\\n' DONE", "ONE-DONE"]],
 	HBLONG: Array.from({ length: 20 }, (_, i) => { const k = String(i + 1).padStart(2, "0"); return [`printf 'BIG-%s-END\\n' ${k}; cat big_${k}.txt`, `BIG-${k}-END`]; }),
 };
@@ -54,14 +56,15 @@ const REPORT_MD = ["# File review", "", "Read all twenty files. Summary:", "",
 	...Array.from({ length: 20 }, (_, i) => `- **big_${String(i + 1).padStart(2, "0")}.txt**: maritime word list, ~16 KB, ends with marker \`BIG-${String(i + 1).padStart(2, "0")}-END\`.`),
 	"", "## Counts", "", "| file | lines | bytes |", "|---|---|---|", ...Array.from({ length: 20 }, (_, i) => `| big_${String(i + 1).padStart(2, "0")}.txt | 190 | 16000 |`),
 	"", "## Sample", "", "```python", "from pathlib import Path", "for f in sorted(Path('.').glob('big_*.txt')):", "    print(f.name, len(f.read_text().split()))", "```", ""].join("\n");
-const FINAL = { HBFX: "All four steps done.", HBTASK: "Fixed: add() now returns a + b and the tests pass.", HBSLOW: "All three steps done.", HBIDLE: "Ready.", HBLONG: REPORT_MD, HBHANG: "Hang steps done.", HBBURST: REPORT_MD, HBWORK: REPORT_MD, HBGROW: REPORT_MD, HBMARATHON: REPORT_MD, HBHUGE: "Huge outputs done.", HBFLOOD: "Flood done.", HBSTREAM: "STREAM-BEGIN " + "the harness keeps streaming this long benchmark answer while the fault happens ".repeat(150) + "STREAM-END" };
+const FINAL = { HBFX: "All four steps done.", HBPIPE: "All four steps done.", HBTASK: "Fixed: add() now returns a + b and the tests pass.", HBSLOW: "All three steps done.", HBIDLE: "Ready.", HBLONG: REPORT_MD, HBHANG: "Hang steps done.", HBBURST: REPORT_MD, HBWORK: REPORT_MD, HBGROW: REPORT_MD, HBMARATHON: REPORT_MD, HBHUGE: "Huge outputs done.", HBFLOOD: "Flood done.", HBSTREAM: "STREAM-BEGIN " + "the harness keeps streaming this long benchmark answer while the fault happens ".repeat(150) + "STREAM-END" };
 
-const PROMPT_HINT = { HBFX: "run the four benchmark steps in order", HBTASK: "fix calc.py so the tests pass" };
-const MIDSTREAM = new Set(["truncate", "stall", "trickle", "sse_error", "malformed"]);
+const PROMPT_HINT = { HBFX: "run the four benchmark steps in order", HBPIPE: "run the four benchmark steps in order", HBTASK: "fix calc.py so the tests pass" };
+const MIDSTREAM = new Set(["truncate", "stall", "trickle", "sse_error", "malformed", "keepalive", "quiet"]);
 // Model-level faults: applied only to a tool-call reply (the count is consumed only then). n/a cells are flagged in the request log.
-const MODEL_FAULTS = new Set(["truncate_tool", "max_tokens_tool", "bad_tool_call", "unknown_tool", "dup_events", "reorder"]);
+const MODEL_FAULTS = new Set(["truncate_tool", "max_tokens_tool", "bad_tool_call", "unknown_tool", "dup_events", "reorder", "refusal"]);
 const isDelta = (api, e) => api === "anthropic" ? e[0] === "content_block_delta" : api === "responses" ? /\.delta$/.test(e.type) : api === "chat" ? !!(e.choices?.[0]?.delta?.tool_calls?.[0]?.function?.arguments || e.choices?.[0]?.delta?.content) : true;
 function planFault(p, kind, api) {
+	if (kind === "refusal") return { kind: "text", text: "I can't help with that request.", refusal: true };
 	if (kind === "unknown_tool") return { ...p, name: "hb_unknown_tool", args: { query: "status" }, input: p.input };
 	if (kind !== "bad_tool_call") return p;
 	if (p.kind === "custom") return { ...p, input: "const r = await tools.exec_command({cmd: ;" };
@@ -82,6 +85,14 @@ function mutate(ev, api, kind) {
 	if (kind === "truncate_tool") {
 		if (api === "gemini") return [ev, 0, true];
 		return [ev, d[Math.min(d.length - 1, Math.max(1, Math.floor(d.length * 0.75)))], false];  // past the side effect (tee), so executing the partial call shows up as a duplicate
+	}
+	if (kind === "refusal") {
+		// safety stop as HTTP 200 after one text delta: anthropic stop_reason refusal, responses incomplete/content_filter, chat finish_reason content_filter, gemini SAFETY
+		const k = (d[0] ?? 0) + 1;
+		if (api === "anthropic") return [[...ev.slice(0, k), ["content_block_stop", { type: "content_block_stop", index: 0 }], ["message_delta", { type: "message_delta", delta: { stop_reason: "refusal", stop_sequence: null, stop_details: { type: "refusal", category: "cyber", explanation: "This request was flagged by the safety system." } }, usage: { output_tokens: 6 } }], ["message_stop", { type: "message_stop" }]], null, false];
+		if (api === "responses") return [[...ev.slice(0, k), { type: "response.incomplete", response: { id: ev[0].response.id, object: "response", status: "incomplete", incomplete_details: { reason: "content_filter" }, model: ev[0].response.model, output: [] } }], null, false];
+		if (api === "chat") return [[...ev.slice(0, k), { ...ev.at(-1), choices: [{ index: 0, delta: {}, finish_reason: "content_filter" }] }], null, false];
+		return [[{ ...ev[0], candidates: [{ content: { role: "model", parts: [] }, index: 0, finishReason: "SAFETY", safetyRatings: [{ category: "HARM_CATEGORY_DANGEROUS_CONTENT", probability: "HIGH", blocked: true }] }] }], null, false];
 	}
 	if (kind === "max_tokens_tool") {
 		const half = d[Math.max(0, Math.floor(d.length * 0.75))];
@@ -299,10 +310,28 @@ async function pace(res, outTokens, events, write, ttft, usage = {}) {
 			const f = usage.fault;
 			if (f === "truncate") { res.socket?.destroy(); return false; }
 			if (f === "stall") { await sleep(usage.faultWindow ?? 120000); res.socket?.destroy(); return false; }
+			if (f === "keepalive") {  // only keepalive pings, no progress, until the window ends, then the connection drops
+				const end = Date.now() + (usage.faultWindow ?? 300000);
+				while (Date.now() < end && !res.destroyed) { res.write(usage.api === "anthropic" ? `event: ping\ndata: {"type": "ping"}\n\n` : ": keepalive\n\n"); await sleep(Math.min(10000, Math.max(0, end - Date.now()))); }
+				res.socket?.destroy();
+				return false;
+			}
+			if (f === "quiet") { await sleep(usage.faultWindow ?? 90000); if (res.destroyed) { appendFileSync(log, JSON.stringify({ n: usage.rec.n, aborted_healthy: true }) + "\n"); return false; } }  // healthy but silent: then completes
 			if (f === "sse_error") { res.write(ERROR_EVENT[usage.api]()); res.end(); return false; }
 			if (f === "malformed") res.write(usage.api === "chat" || usage.api === "gemini" ? "data: {not json\n\n" : "event: content_block_delta\ndata: {not json\n\n");
 		}
-		write(e);
+		if (usage.splitUtf8) {  // a multibyte char split across two writes
+			const ow = res.write;
+			res.write = (x) => {
+				const bb = Buffer.from(x);
+				const k = bb.findIndex((c) => c >= 0xc0);
+				if (k < 0) return ow.call(res, x);
+				ow.call(res, bb.subarray(0, k + 1));
+				return ow.call(res, bb.subarray(k + 1));
+			};
+			write(e);
+			res.write = ow;
+		} else write(e);
 		i++;
 		if (usage.fault === "trickle" && i >= Math.min(MIDSTREAM_AFTER, events.length - 1)) await sleep(5000);
 		else if (gap) await sleep(gap);
@@ -502,12 +531,24 @@ const server = http.createServer(async (req, res) => {
 	const isMain = view.tools.length > 0 && !schema && !/\btitle\b/i.test((view.users.at(-1) ?? "").slice(0, 200));
 	if (!isMain) rec.side = rec.side ?? (schema ? "json" : "aux");
 	const f = faults.get(tag);
-	let midFault = null, midWindow = null, modelFault = null;
+	let midFault = null, midWindow = null, modelFault = null, usageSplit = false;
 	const fail = (kind) => {
 		appendFileSync(log, JSON.stringify(rec) + "\n");
 		res.on("close", () => appendFileSync(log, JSON.stringify({ n, t_end: Date.now() / 1000 }) + "\n"));
 		if (kind === "reset") return req.socket.destroy();
 		if (kind === "hang") return setTimeout(() => req.socket.destroy(), Math.max(0, f.start + f.window - Date.now()));
+		if (kind === "billing") {  // terminal quota disguised as 429: no Retry-After (gemini: per-day quota with a short RetryInfo)
+			res.writeHead(429, { "content-type": "application/json", ...(api === "anthropic" ? { "request-id": id("req_") } : {}) });
+			return res.end(JSON.stringify(api === "anthropic" ? { type: "error", error: { type: "rate_limit_error", message: "You have reached your specified API usage limits. You will regain access on 2026-12-01 at 00:00 UTC.", details: { error_code: "enforced_spend_limit_reached" } }, request_id: id("req_") }
+				: api === "gemini" ? { error: { code: 429, message: "You exceeded your current quota, please check your plan and billing details.", status: "RESOURCE_EXHAUSTED", details: [{ "@type": "type.googleapis.com/google.rpc.QuotaFailure", violations: [{ quotaMetric: "generativelanguage.googleapis.com/generate_content_requests", quotaId: "GenerateRequestsPerDayPerProjectPerModel" }] }, { "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "34s" }] } }
+				: { error: { message: "You exceeded your current quota, please check your plan and billing details.", type: "insufficient_quota", param: null, code: "insufficient_quota" } }));
+		}
+		if (kind === "badutf8") {
+			res.writeHead(400, { "content-type": "application/json" });
+			return res.end(JSON.stringify(api === "anthropic" ? { type: "error", error: { type: "invalid_request_error", message: "The request body is not valid JSON: invalid unicode code point" } }
+				: api === "gemini" ? { error: { code: 400, message: "Invalid JSON payload received. Invalid UTF-8.", status: "INVALID_ARGUMENT" } }
+				: { error: { message: "We could not parse the JSON body of your request: invalid unicode.", type: "invalid_request_error", param: null, code: null } }));
+		}
 		if (kind === "html200") { res.writeHead(200, { "content-type": "text/html" }); return res.end("<html><head><title>502 Bad Gateway</title></head><body><center><h1>502 Bad Gateway</h1></center><hr><center>nginx</center></body></html>\n"); }
 		if (kind === "empty200") { res.writeHead(200, { "content-type": rec.stream ? "text/event-stream" : "application/json" }); return res.end(); }
 		if (kind === "overflow") {
@@ -528,7 +569,14 @@ const server = http.createServer(async (req, res) => {
 			: { error: { message: oai[2], type: oai[0], param: null, code: oai[1] } }));
 	};
 	const inWindow = () => f.start != null && Date.now() - f.start < f.window;
-	if (f && f.kind === "flap") {
+	if (f && f.kind === "utf8") {
+		// no injection: invalid UTF-8 or lone surrogate escapes in the body are rejected as a real provider would; text replies carry multibyte chars split across writes
+		let bad = false;
+		try { new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunksIn)); } catch { bad = true; }
+		bad ||= /\\ud[89ab][0-9a-f]{2}(?!\\ud[c-f][0-9a-f]{2})/i.test(raw);
+		if (bad && isMain) { rec.injected = "badutf8"; return fail("badutf8"); }
+		if (isMain && p.kind === "text") { p = { ...p, text: p.text + " ✅ 완료 🙂" }; usageSplit = true; }
+	} else if (f && f.kind === "flap") {
 		// request-based flapping for the whole window: after `after` main requests, main requests go down, down, up, ...; side calls fail while down
 		if (isMain && f.seen++ >= f.after) {
 			f.start ??= Date.now();
@@ -544,7 +592,7 @@ const server = http.createServer(async (req, res) => {
 			f.lastMain = raw.length;
 		}
 	} else if (f && MODEL_FAULTS.has(f.kind)) {
-		if (isMain && rec.stream && f.seen >= f.after && f.count > 0 && (p.kind === "tool" || p.kind === "custom")) modelFault = f.kind;
+		if (isMain && rec.stream && f.seen >= f.after && f.count > 0 && (p.kind === "tool" || p.kind === "custom" || f.kind === "refusal")) modelFault = f.kind;
 		if (isMain) f.seen++;
 	} else if (f) {
 		const open = inWindow() && f.count > 0;
@@ -582,13 +630,15 @@ const server = http.createServer(async (req, res) => {
 	usage.modelFault = modelFault;
 	usage.rec = rec;
 	usage.faultWindow = midWindow;
+	usage.splitUtf8 = usageSplit;
 	usage.api = api;
 	usage.ttft = ttftBase + ttftPerKtok * Math.max(0, rec.est_input - cached) / 1000;
 	const scen = scenario(view.users.join("\n"));
 	const allOut = view.outputs.join("\n");
 	rec.markers = scen && SCRIPTS[scen] ? SCRIPTS[scen].filter(([, mk]) => allOut.includes(mk)).map(([, mk]) => mk) : [];
 	const agent = (view.users.join(" ").match(/\[(a\d{3})\]/) ?? [])[1];
-	Object.assign(rec, { agent, side: p.side ?? rec.side, compaction: p.compaction || undefined, gave_up: p.gaveUp || undefined, reply: p.kind, scenario: p.scenario ?? null, step: p.step ?? null, out_tokens: usage.output, text: p.kind === "text" ? p.text.slice(0, 80) : undefined });
+	if (p.refusal) p = { ...p, scenario: null };
+	Object.assign(rec, { agent, side: p.side ?? rec.side, compaction: p.compaction || undefined, gave_up: p.gaveUp || undefined, reply: p.refusal ? "refusal" : p.kind, scenario: p.scenario ?? null, step: p.step ?? null, out_tokens: usage.output, text: p.kind === "text" ? p.text.slice(0, 80) : undefined });
 	appendFileSync(log, JSON.stringify(rec) + "\n");
 	try {
 		if (api === "anthropic") await anthropic(req, res, b, p, usage);
